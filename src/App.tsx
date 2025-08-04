@@ -295,162 +295,50 @@ function App() {
         sectionsToRender.push(...sections);
       }
     } else if (vendor === "fastdds") {
-      // For FastDDS, we might get either:
-      // 1. A single root object containing base sections (dds > profiles, log, etc.)
-      // 2. Base sections directly as an array (profiles, log, etc.)
-      
-      let baseSections: FormField[] = [];
+      // Collect all fields/sections to display
+      let allFieldsToDisplay: FormField[] = [];
       
       if (fieldsToRender.length === 1 && fieldsToRender[0].type === "object" && fieldsToRender[0].fields) {
-        // Case 1: Single root object
+        // Extract all base sections and their subsections
         const rootField = fieldsToRender[0];
-        baseSections = rootField.fields?.filter(
-          (field: FormField) =>
-            (field.type === "object" || field.type === "array") && field.fields
-        ) || [];
+        rootField.fields?.forEach((baseSection: FormField) => {
+          if (baseSection.type === "object" && baseSection.fields) {
+            // Add all subsections from this base section
+            baseSection.fields.forEach((subsection: FormField) => {
+              allFieldsToDisplay.push(subsection);
+            });
+          } else {
+            // Add the base section itself
+            allFieldsToDisplay.push(baseSection);
+          }
+        });
       } else {
-        // Case 2: Base sections are already at top level
-        baseSections = fieldsToRender.filter(
-          (field: FormField) =>
-            (field.type === "object" || field.type === "array") && field.fields
-        );
+        // If fields are already flat, use them directly
+        fieldsToRender.forEach((field: FormField) => {
+          if (field.type === "object" && field.fields) {
+            field.fields.forEach((subfield: FormField) => {
+              allFieldsToDisplay.push(subfield);
+            });
+          } else {
+            allFieldsToDisplay.push(field);
+          }
+        });
       }
 
-      console.log("Base sections found:", baseSections);
+      // Split all fields into two halves
+      const midpoint = Math.ceil(allFieldsToDisplay.length / 2);
+      const leftFields = allFieldsToDisplay.slice(0, midpoint);
+      const rightFields = allFieldsToDisplay.slice(midpoint);
 
-      // Render each base section with its own header and appropriate layout
+      // Render split-screen layout
       return (
-        <div className="space-y-8">
-          {baseSections.map((baseSection: FormField) => {
-            // Get subsections within this base section
-            const subsections =
-              baseSection.fields?.filter(
-                (f: FormField) => f.type === "object" || f.type === "array"
-              ) || [];
-
-            console.log("subsections", subsections);
-            // Get simple fields (non-object/array) within this base section
-            const simpleFields =
-              baseSection.fields?.filter(
-                (f: FormField) => f.type !== "object" && f.type !== "array"
-              ) || [];
-
-            console.log("simpleFields", simpleFields);
-
-            // Check if this base section has multiple subsections that should be in columns
-            const hasMultipleSubsections = subsections.length > 1;
-
-            return (
-              <div key={baseSection.name} className="space-y-4">
-                {/* Base Section Card containing everything */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-xl">
-                      {baseSection.label}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {/* If there are simple fields at the base section level, show them first */}
-                    {simpleFields.length > 0 && (
-                      <div className="space-y-4 mb-6">
-                        {simpleFields.map((field) => (
-                          <div key={field.name}>
-                            <label className="text-base font-medium">
-                              {field.label}
-                            </label>
-                            <FormFieldComponent
-                              field={field}
-                              onChange={handleFieldChange}
-                              isInline={true}
-                              isModified={isFieldModified(
-                                field,
-                                originalFields
-                              )}
-                              originalFields={originalFields}
-                              validationError={
-                                fieldValidationErrors[field.path.join(".")]
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Content based on section structure */}
-                    {hasMultipleSubsections ? (
-                      // If section has multiple subsections (like profiles), render in columns
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Left Column */}
-                        <div className="space-y-6">
-                          {subsections
-                            .slice(0, Math.ceil(subsections.length / 2))
-                            .map((field) => (
-                              <FormFieldComponent
-                                key={field.name}
-                                field={field}
-                                onChange={handleFieldChange}
-                                isModified={isFieldModified(field, originalFields)}
-                                originalFields={originalFields}
-                                validationError={
-                                  fieldValidationErrors[field.path.join(".")]
-                                }
-                              />
-                            ))}
-                        </div>
-
-                        {/* Right Column */}
-                        <div className="space-y-6">
-                          {subsections
-                            .slice(Math.ceil(subsections.length / 2))
-                            .map((field) => (
-                              <FormFieldComponent
-                                key={field.name}
-                                field={field}
-                                onChange={handleFieldChange}
-                                isModified={isFieldModified(field, originalFields)}
-                                originalFields={originalFields}
-                                validationError={
-                                  fieldValidationErrors[field.path.join(".")]
-                                }
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    ) : subsections.length === 1 ? (
-                      // If only one subsection, render it normally
-                      <FormFieldComponent
-                        field={subsections[0]}
-                        onChange={handleFieldChange}
-                        isModified={isFieldModified(subsections[0], originalFields)}
-                        originalFields={originalFields}
-                        validationError={
-                          fieldValidationErrors[subsections[0].path.join(".")]
-                        }
-                      />
-                    ) : // If no subsections, just the simple fields which are already shown above
-                    null}
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-
-    // If we have a domain header and sections, render with special layout
-    if (domainHeaderField && sectionsToRender.length > 0) {
-      return (
-        <div className="space-y-6">
-          {/* Domain Header */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{domainHeaderField.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {domainHeaderField.fields?.map((field) => (
+        <div className="flex h-full">
+          {/* Left Section - 50% */}
+          <div className="w-1/2 p-6 overflow-y-auto border-r border-gray-200">
+            <div className="space-y-6">
+              {leftFields.map((field) => (
                 <FormFieldComponent
-                  key={field.name}
+                  key={field.path.join("-")}
                   field={field}
                   onChange={handleFieldChange}
                   isModified={isFieldModified(field, originalFields)}
@@ -458,11 +346,99 @@ function App() {
                   validationError={fieldValidationErrors[field.path.join(".")]}
                 />
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          
+          {/* Right Section - 50% */}
+          <div className="w-1/2 p-6 overflow-y-auto">
+            <div className="space-y-6">
+              {rightFields.map((field) => (
+                <FormFieldComponent
+                  key={field.path.join("-")}
+                  field={field}
+                  onChange={handleFieldChange}
+                  isModified={isFieldModified(field, originalFields)}
+                  originalFields={originalFields}
+                  validationError={fieldValidationErrors[field.path.join(".")]}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
-          {/* Sections in two columns */}
-          {renderFieldsInColumns(sectionsToRender)}
+    // If we have a domain header and sections, render with special layout (CycloneDDS)
+    if (domainHeaderField && sectionsToRender.length > 0) {
+      // Split sections into two halves
+      const midpoint = Math.ceil(sectionsToRender.length / 2);
+      const leftSections = sectionsToRender.slice(0, midpoint);
+      const rightSections = sectionsToRender.slice(midpoint);
+
+      return (
+        <div className="flex flex-col h-full">
+          {/* Domain Header - Compact */}
+          <div className="px-6 pt-4 pb-2">
+            <Card className="shadow-sm">
+              <CardHeader className="py-3">
+                <CardTitle className="text-lg">{domainHeaderField.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="pb-3">
+                <div className="flex items-center gap-4">
+                  {domainHeaderField.fields?.map((field) => (
+                    <div key={field.name} className="flex items-center gap-2">
+                      <label className="text-sm font-medium">{field.label}:</label>
+                      <div className="w-32">
+                        <FormFieldComponent
+                          field={field}
+                          onChange={handleFieldChange}
+                          isInline={true}
+                          isModified={isFieldModified(field, originalFields)}
+                          originalFields={originalFields}
+                          validationError={fieldValidationErrors[field.path.join(".")]}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Split-screen sections */}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left Section - 50% */}
+            <div className="w-1/2 p-6 overflow-y-auto border-r border-gray-200">
+              <div className="space-y-6">
+                {leftSections.map((field) => (
+                  <FormFieldComponent
+                    key={field.name}
+                    field={field}
+                    onChange={handleFieldChange}
+                    isModified={isFieldModified(field, originalFields)}
+                    originalFields={originalFields}
+                    validationError={fieldValidationErrors[field.path.join(".")]}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {/* Right Section - 50% */}
+            <div className="w-1/2 p-6 overflow-y-auto">
+              <div className="space-y-6">
+                {rightSections.map((field) => (
+                  <FormFieldComponent
+                    key={field.name}
+                    field={field}
+                    onChange={handleFieldChange}
+                    isModified={isFieldModified(field, originalFields)}
+                    originalFields={originalFields}
+                    validationError={fieldValidationErrors[field.path.join(".")]}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       );
     }

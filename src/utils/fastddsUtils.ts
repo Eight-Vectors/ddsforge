@@ -31,34 +31,44 @@ export const getFastDDSDefault = (path: string[]): any => {
   return undefined;
 };
 
-// Only includes profiles that exist in uploaded data, not all default profiles from schema
+// Merges uploaded data with schema, ensuring all schema sections are included
 export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
   const result: any = {
-    '@_xmlns': schema['@_xmlns'] || 'http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles'
+    '@_xmlns': uploadedData['@_xmlns'] || schema['@_xmlns'] || 'http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles'
   };
   
-  if (uploadedData.profiles) {
-    result.profiles = {
-      '@_xmlns': uploadedData.profiles['@_xmlns'] || schema.profiles?.['@_xmlns']
-    };
-    
-    Object.keys(uploadedData.profiles).forEach(key => {
-      if (!key.startsWith('@_')) {
-        result.profiles[key] = uploadedData.profiles[key];
+  // First, include all base sections from schema
+  Object.keys(schema).forEach(key => {
+    if (!key.startsWith('@_')) {
+      // For each schema section, use uploaded data if available, otherwise use schema default
+      if (uploadedData[key] !== undefined) {
+        result[key] = uploadedData[key];
+      } else {
+        result[key] = schema[key];
       }
-    });
-  }
-  
-  Object.keys(uploadedData).forEach(key => {
-    if (key !== 'profiles' && !key.startsWith('@_')) {
-      result[key] = uploadedData[key];
     }
   });
   
-  // Top-level profile elements in some FastDDS configurations
-  ['participant', 'publisher', 'subscriber', 'topic', 'data_writer', 'data_reader'].forEach(elementType => {
-    if (uploadedData[elementType]) {
-      result[elementType] = uploadedData[elementType];
+  // Handle profiles section specially
+  if (schema.profiles || uploadedData.profiles) {
+    result.profiles = {
+      '@_xmlns': uploadedData.profiles?.['@_xmlns'] || schema.profiles?.['@_xmlns']
+    };
+    
+    // Include uploaded profiles
+    if (uploadedData.profiles) {
+      Object.keys(uploadedData.profiles).forEach(key => {
+        if (!key.startsWith('@_')) {
+          result.profiles[key] = uploadedData.profiles[key];
+        }
+      });
+    }
+  }
+  
+  // Include any additional sections from uploaded data that aren't in schema
+  Object.keys(uploadedData).forEach(key => {
+    if (!key.startsWith('@_') && result[key] === undefined) {
+      result[key] = uploadedData[key];
     }
   });
   
