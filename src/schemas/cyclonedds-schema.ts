@@ -1,0 +1,112 @@
+// CycloneDDS Complete Schema Definition
+export const cycloneDDSSchema = {
+  CycloneDDS: {
+    '@_xmlns': 'https://cdds.io/config',
+    '@_xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+    '@_xsi:schemaLocation': 'https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd',
+    Domain: {
+      Id: 0,
+      General: {
+        NetworkInterfaceAddress: 'auto',
+        MulticastTimeToLive: 32,
+        DontRoute: false,
+        DumpedLogDirectory: '',
+        TransportPriority: 0,
+        MaxMsgSize: 65500,
+        MaxRexmitMsgSize: 1456,
+        FragmentSize: 1344,
+        Transport: 'default',
+        EnableMulticastLoopback: true,
+        MaxSampleSize: 2147483647
+      },
+      Discovery: {
+        ParticipantIndex: 'auto',
+        MaxAutoParticipantIndex: 100,
+        DSGracePeriod: '30s',
+        Peers: {
+          Peer: []
+        },
+        Multicast: {
+          Address: '239.255.0.1',
+          Port: 'auto'
+        },
+        ParticipantLivenessAssertionPeriod: '5s',
+        ParticipantLivenessLeaseDuration: '10s',
+        ParticipantLeaseDuration: '10s',
+        ParticipantLeaseExtension: '0s',
+        MaxEndpoints: 0
+      },
+      Tracing: {
+        Verbosity: 'warning',
+        OutputFile: '',
+        Timestamps: false,
+        AppendToFile: false,
+        Categories: {
+          Category: []
+        }
+      },
+      TCP: {
+        Enable: false,
+        ListenAddress: '0.0.0.0',
+        ListenPort: 7400,
+        PublicAddress: 'auto',
+        PublicPort: 'auto',
+        MaxConnections: 10,
+        MaxPendingConnections: 10,
+        NoDelay: true,
+        Port: 'auto',
+        ReadTimeout: '2s',
+        WriteTimeout: '2s'
+      },
+      SSL: {
+        Enable: false,
+        CertificateChainFile: '',
+        PrivateKeyFile: '',
+        KeyPassphrase: '',
+        Ciphers: '',
+        VerifyClient: false,
+        MaxHandshakeDuration: '10s',
+        MinimumTLSVersion: ''
+      },
+      SharedMemory: {
+        Enable: true,
+        Size: 134217728,
+        LogLevel: 'info',
+        BufferSize: 8192
+      },
+      Monitoring: {
+        Enable: false,
+        AppName: '',
+        Interval: '1s',
+        BatchSize: 10
+      },
+      Watchdog: {
+        Enable: false,
+        Interval: '1s'
+      },
+      Internal: {
+        SequenceNumbers: {
+          BitSize: 48
+        },
+        DeliveryQueueMaxSamples: 256,
+        PrimaryReorderMaxSamples: 128,
+        SecondaryReorderMaxSamples: 128,
+        DefragUnreliableMaxSamples: 4,
+        DefragReliableMaxSamples: 16,
+        BuiltinMcastAddress: '239.255.0.0',
+        BuiltinPort: 'auto',
+        BuiltinFragmentSize: 1344,
+        MeasureHbToAckLatency: false,
+        UnicastResponseToSPDPMessages: true,
+        SynchronousDeliveryLatencyBound: '2147483647ms',
+        MaxQueuedRexmitBytes: 52428800,
+        MaxQueuedRexmitMsgs: 200,
+        DDSIRtps: {
+          Enable: false,
+          ReceiveBufferSize: 'default',
+          ReceiveBufferChunkSize: 131072
+        }
+      }
+    }
+  }
+};
