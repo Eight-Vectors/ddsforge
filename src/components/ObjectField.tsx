@@ -14,7 +14,7 @@ interface ObjectFieldProps {
 }
 
 export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, originalFields = [], isModified = false }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Check if any child field is modified
   const hasModifiedChildren = field.fields?.some(subField => 

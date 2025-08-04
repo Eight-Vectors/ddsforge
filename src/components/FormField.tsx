@@ -12,6 +12,7 @@ interface FormFieldProps {
   isInline?: boolean;
   isModified?: boolean;
   originalFields?: FormFieldType[];
+  validationError?: string;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
@@ -20,6 +21,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   isInline = false,
   isModified = false,
   originalFields = [],
+  validationError,
 }) => {
   const handleChange = (value: any) => {
     onChange(field.path, value);
@@ -107,7 +109,14 @@ export const FormField: React.FC<FormFieldProps> = ({
 
   // If inline (inside an object), don't wrap in card
   if (isInline) {
-    return renderField();
+    return (
+      <div>
+        {renderField()}
+        {validationError && (
+          <p className="text-sm text-red-600 mt-1">{validationError}</p>
+        )}
+      </div>
+    );
   }
 
   // For simple fields at top level, wrap in a card
@@ -128,6 +137,9 @@ export const FormField: React.FC<FormFieldProps> = ({
       </CardHeader>
       <CardContent>
         {renderField()}
+        {validationError && (
+          <p className="text-sm text-red-600 mt-2">{validationError}</p>
+        )}
       </CardContent>
     </Card>
   );

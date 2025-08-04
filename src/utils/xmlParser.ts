@@ -86,7 +86,9 @@ export const xmlToFormFields = (
     if (key === '@_xmlns' || key === '@_xmlns:xsi' || key === '@_xsi:schemaLocation') return null;
 
     const fieldPath = [...currentPath, key];
-    const label = key.split(/(?=[A-Z])/).join(' ').toLowerCase()
+    // Clean up attribute names (remove @_ prefix) for display
+    const displayKey = key.startsWith('@_') ? key.substring(2) : key;
+    const label = displayKey.split(/(?=[A-Z])/).join(' ').toLowerCase()
       .replace(/(^|\s)\S/g, (l) => l.toUpperCase());
 
     if (Array.isArray(value)) {
