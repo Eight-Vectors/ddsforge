@@ -30,7 +30,8 @@ export const buildXML = (data: any, vendor: DDSVendor): string => {
     ignoreAttributes: false,
     format: true,
     indentBy: '  ',
-    suppressEmptyNode: false,
+    suppressEmptyNode: true,
+    suppressBooleanAttributes: false,
     attributeNamePrefix: '@_',
     textNodeName: '#text',
     processEntities: true
@@ -184,16 +185,28 @@ export const formFieldsToXML = (fields: FormField[], excludeDefaults: boolean = 
     }
     
     if (field.type === 'array') {
-      if (field.fields && field.fields.length > 0) {
-        result[field.name] = field.value.map((item: any) => {
-          const itemFields = field.fields!.map(subField => ({
-            ...subField,
-            value: item[subField.name] !== undefined ? item[subField.name] : subField.defaultValue
-          }));
-          return formFieldsToXML(itemFields, excludeDefaults, vendor);
-        });
-      } else {
-        result[field.name] = field.value;
+      if (Array.isArray(field.value) && field.value.length > 0) {
+        if (field.fields && field.fields.length > 0) {
+          const mappedItems = field.value.map((item: any) => {
+            const itemFields = field.fields!.map(subField => ({
+              ...subField,
+              value: item[subField.name] !== undefined ? item[subField.name] : subField.defaultValue
+            }));
+            return formFieldsToXML(itemFields, excludeDefaults, vendor);
+          }).filter((item: any) => Object.keys(item).length > 0); // Filter out empty objects
+          
+          if (mappedItems.length > 0) {
+            result[field.name] = mappedItems;
+          }
+        } else {
+          // For simple arrays (not objects)
+          const nonEmptyItems = field.value.filter((item: any) => 
+            item !== null && item !== undefined && item !== ''
+          );
+          if (nonEmptyItems.length > 0) {
+            result[field.name] = nonEmptyItems;
+          }
+        }
       }
     } else if (field.type === 'object' && field.fields) {
       const subResult = formFieldsToXML(field.fields, excludeDefaults, vendor);

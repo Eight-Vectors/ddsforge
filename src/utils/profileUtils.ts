@@ -1,9 +1,9 @@
-import type { FormField, DDSVendor } from '../types/dds';
+import type { FormField } from '../types/dds';
 import { fastDDSSchema } from '../schemas/fastdds-schema';
 
 export interface ProfileData {
   profileName: string;
-  profileType: 'participant' | 'data_writer' | 'data_reader' | 'topic';
+  profileType: string; // Now dynamic, not restricted to specific types
   isDefault: boolean;
   fields: FormField[];
 }
@@ -135,20 +135,28 @@ export const profilesToXML = (profiles: ProfilesStructure, fieldsMap: Map<string
 };
 
 // Get default profile structure based on type
-export const getDefaultProfileData = (profileType: ProfileData['profileType']): any => {
+export const getDefaultProfileData = (profileType: string): any => {
   const schema = fastDDSSchema.dds.profiles;
   
   switch (profileType) {
     case 'participant':
-      return schema.participant[0];
+      return schema.participant?.[0] || null;
     case 'data_writer':
-      return schema.data_writer[0];
+      return schema.data_writer?.[0] || null;
     case 'data_reader':
-      return schema.data_reader[0];
+      return schema.data_reader?.[0] || null;
     case 'topic':
-      return schema.topic[0];
+      return schema.topic?.[0] || null;
+    case 'transport_descriptor':
+      // Return a minimal transport descriptor structure
+      return {
+        transport_id: 'new_transport',
+        type: 'UDPv4',
+        sendBufferSize: 65536,
+        receiveBufferSize: 65536
+      };
     default:
-      return {};
+      return null;
   }
 };
 

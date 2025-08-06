@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2, Copy, Edit2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -12,11 +12,17 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface Profile {
   name: string;
-  type: 'participant' | 'data_writer' | 'data_reader' | 'topic';
+  type: string; // Now dynamic, not restricted to specific types
   isDefault: boolean;
 }
 
@@ -43,7 +49,7 @@ export function ProfileManager({
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
-  const [newProfileType, setNewProfileType] = useState<Profile['type']>("participant");
+  const [newProfileType, setNewProfileType] = useState<string>("participant");
   const [profileToRename, setProfileToRename] = useState<string>("");
   const [profileToDuplicate, setProfileToDuplicate] = useState<string>("");
   const [error, setError] = useState("");
@@ -53,14 +59,14 @@ export function ProfileManager({
     if (!acc[profile.type]) acc[profile.type] = [];
     acc[profile.type].push(profile);
     return acc;
-  }, {} as Record<Profile['type'], Profile[]>);
+  }, {} as Record<string, Profile[]>);
 
   const validateProfileName = (name: string): boolean => {
     if (!name.trim()) {
       setError("Profile name cannot be empty");
       return false;
     }
-    if (profiles.some(p => p.name === name)) {
+    if (profiles.some((p) => p.name === name)) {
       setError("Profile name already exists");
       return false;
     }
@@ -73,7 +79,8 @@ export function ProfileManager({
       onProfileAdd({
         name: newProfileName,
         type: newProfileType,
-        isDefault: profiles.filter(p => p.type === newProfileType).length === 0,
+        isDefault:
+          profiles.filter((p) => p.type === newProfileType).length === 0,
       });
       setShowAddDialog(false);
       setNewProfileName("");
@@ -99,11 +106,23 @@ export function ProfileManager({
     }
   };
 
-  const profileTypeLabels = {
+  const profileTypeLabels: Record<string, string> = {
     participant: "Participant",
     data_writer: "Data Writer",
     data_reader: "Data Reader",
-    topic: "Topic"
+    topic: "Topic",
+    transport_descriptor: "Transport Descriptor",
+  };
+
+  // Get display label for profile type
+  const getProfileTypeLabel = (type: string): string => {
+    return (
+      profileTypeLabels[type] ||
+      type
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    );
   };
 
   return (
@@ -113,7 +132,7 @@ export function ProfileManager({
         <Button
           size="sm"
           onClick={() => setShowAddDialog(true)}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
         >
           <Plus className="w-4 h-4" />
           Add Profile
@@ -121,49 +140,57 @@ export function ProfileManager({
       </div>
 
       {Object.entries(profilesByType).map(([type, typeProfiles]) => (
-        <Card key={type}>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm">{profileTypeLabels[type as Profile['type']]}</CardTitle>
+        <Card key={type} className="gap-2">
+          <CardHeader className="py-0">
+            <CardTitle className="text-sm">
+              {getProfileTypeLabel(type)}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {typeProfiles.map(profile => (
+          <CardContent className="space-y-2 px-3">
+            {typeProfiles.map((profile) => (
               <div
                 key={profile.name}
-                className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
-                  selectedProfile?.name === profile.name 
-                    ? 'bg-purple-50 border border-purple-200' 
-                    : 'hover:bg-gray-50'
+                className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                  selectedProfile?.name === profile.name
+                    ? "bg-purple-50 border border-purple-200"
+                    : "hover:bg-gray-50"
                 }`}
                 onClick={() => onProfileSelect(profile)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{profile.name}</span>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="font-medium truncate" title={profile.name}>
+                    {profile.name}
+                  </span>
                   {profile.isDefault && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex-shrink-0">
                       Default
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation();
                       setProfileToRename(profile.name);
                       setShowRenameDialog(true);
                     }}
+                    title="Rename"
                   >
                     <Edit2 className="w-3 h-3" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation();
                       setProfileToDuplicate(profile.name);
                       setShowDuplicateDialog(true);
                     }}
+                    title="Duplicate"
                   >
                     <Copy className="w-3 h-3" />
                   </Button>
@@ -171,10 +198,12 @@ export function ProfileManager({
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
                         onProfileDelete(profile.name);
                       }}
+                      title="Delete"
                     >
                       <Trash2 className="w-3 h-3" />
                     </Button>
@@ -192,11 +221,12 @@ export function ProfileManager({
           <DialogHeader>
             <DialogTitle>Add New Profile</DialogTitle>
             <DialogDescription>
-              Create a new profile configuration. The profile name must be unique.
+              Create a new profile configuration. The profile name must be
+              unique.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
+            <div className="space-y-4">
               <Label htmlFor="profile-name">Profile Name</Label>
               <Input
                 id="profile-name"
@@ -209,9 +239,9 @@ export function ProfileManager({
               />
               {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
             </div>
-            <div>
+            <div className="space-y-4">
               <Label htmlFor="profile-type">Profile Type</Label>
-              <Select value={newProfileType} onValueChange={(value: Profile['type']) => setNewProfileType(value)}>
+              <Select value={newProfileType} onValueChange={setNewProfileType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -220,6 +250,9 @@ export function ProfileManager({
                   <SelectItem value="data_writer">Data Writer</SelectItem>
                   <SelectItem value="data_reader">Data Reader</SelectItem>
                   <SelectItem value="topic">Topic</SelectItem>
+                  <SelectItem value="transport_descriptor">
+                    Transport Descriptor
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -228,7 +261,12 @@ export function ProfileManager({
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddProfile}>Add Profile</Button>
+            <Button
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+              onClick={handleAddProfile}
+            >
+              Add Profile
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -242,7 +280,7 @@ export function ProfileManager({
               Enter a new name for the profile "{profileToRename}".
             </DialogDescription>
           </DialogHeader>
-          <div>
+          <div className="space-y-4">
             <Label htmlFor="new-profile-name">New Profile Name</Label>
             <Input
               id="new-profile-name"
@@ -256,10 +294,18 @@ export function ProfileManager({
             {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowRenameDialog(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleRenameProfile}>Rename</Button>
+            <Button
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+              onClick={handleRenameProfile}
+            >
+              Rename
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -273,7 +319,7 @@ export function ProfileManager({
               Enter a name for the duplicate of profile "{profileToDuplicate}".
             </DialogDescription>
           </DialogHeader>
-          <div>
+          <div className="space-y-4">
             <Label htmlFor="duplicate-profile-name">New Profile Name</Label>
             <Input
               id="duplicate-profile-name"
@@ -287,7 +333,10 @@ export function ProfileManager({
             {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowDuplicateDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleDuplicateProfile}>Duplicate</Button>

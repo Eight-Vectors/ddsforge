@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { DDSVendor, FormField } from "./types/dds";
 import { FileUpload } from "./components/FileUpload";
 import { FormField as FormFieldComponent } from "./components/FormField";
+import { FastDDSProfileEditor } from "./components/FastDDSProfileEditor";
 import {
   detectVendor,
   formFieldsToXML,
@@ -12,7 +13,6 @@ import {
 } from "./utils/xmlParser";
 import { parseXMLInBrowser } from "./utils/browserXmlParser";
 import { isFieldModified } from "./utils/fieldUtils";
-import { smartMergeFastDDS } from "./utils/fastddsUtils";
 import { validateXML, validateFieldValue } from "./utils/xmlValidator";
 import { Download, FileText, RotateCcw, Eye } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -32,6 +32,8 @@ function App() {
   const [fieldValidationErrors, setFieldValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [uploadedFastDDSData, setUploadedFastDDSData] = useState<any>(null);
+  const [generatedXML, setGeneratedXML] = useState<string>("");
 
   const handleFileUpload = async (content: string, fileName?: string) => {
     setIsLoading(true);
@@ -60,26 +62,20 @@ function App() {
         uploadedData = parsed.dds || parsed.DDS;
       }
 
-      // Get the complete schema for this vendor
-      const schema = getSchemaForVendor(detectedVendor);
-
-      // Merge uploaded data into the schema
-      let mergedData;
-      if (detectedVendor === "cyclonedds") {
-        // For CycloneDDS, use the standard merge (it handles partial files well)
-        mergedData = mergeUploadedDataIntoSchema(
+      if (detectedVendor === "fastdds") {
+        // For FastDDS, store the uploaded data for the profile editor
+        setUploadedFastDDSData(uploadedData);
+      } else {
+        // For CycloneDDS, use the existing form-based approach
+        const schema = getSchemaForVendor(detectedVendor);
+        const mergedData = mergeUploadedDataIntoSchema(
           uploadedData,
           schema.CycloneDDS
         );
-      } else {
-        // For FastDDS, use smart merge to avoid adding default profiles
-        mergedData = smartMergeFastDDS(uploadedData, schema.dds);
+        const formFields = xmlToFormFields(mergedData);
+        setFields(formFields);
+        setOriginalFields(JSON.parse(JSON.stringify(formFields)));
       }
-
-      // Generate form fields from the merged data (which includes all schema fields)
-      const formFields = xmlToFormFields(mergedData);
-      setFields(formFields);
-      setOriginalFields(JSON.parse(JSON.stringify(formFields))); // Deep clone for reset
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse XML file");
     } finally {
@@ -96,15 +92,17 @@ function App() {
       selectedVendor === "cyclonedds" ? "cyclonedds-config" : "fastdds-config";
     setDownloadFilename(defaultName);
 
-    // Get the complete schema for this vendor
-    const schema = getSchemaForVendor(selectedVendor);
-    const schemaData =
-      selectedVendor === "cyclonedds" ? schema.CycloneDDS : schema.dds;
-
-    // Generate form fields from the schema (all default values)
-    const formFields = xmlToFormFields(schemaData);
-    setFields(formFields);
-    setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+    if (selectedVendor === "fastdds") {
+      // For FastDDS, just set the vendor, the profile editor will handle the rest
+      setUploadedFastDDSData(null);
+    } else {
+      // For CycloneDDS, use the existing form-based approach
+      const schema = getSchemaForVendor(selectedVendor);
+      const schemaData = schema.CycloneDDS;
+      const formFields = xmlToFormFields(schemaData);
+      setFields(formFields);
+      setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+    }
     setError(null);
   };
 
@@ -161,9 +159,14 @@ function App() {
   const generateXML = () => {
     if (!vendor) return "";
 
-    // Generate XML based on user preference
-    const xmlData = formFieldsToXML(fields, excludeDefaults, vendor);
-    return buildXML(xmlData, vendor);
+    if (vendor === "fastdds") {
+      // For FastDDS, use the generated XML from the profile editor
+      return generatedXML;
+    } else {
+      // For CycloneDDS, generate XML from form fields
+      const xmlData = formFieldsToXML(fields, excludeDefaults, vendor);
+      return buildXML(xmlData, vendor);
+    }
   };
 
   const downloadXML = () => {
@@ -217,6 +220,8 @@ function App() {
     setDownloadFilename("");
     setFieldValidationErrors({});
     setValidationErrors([]);
+    setUploadedFastDDSData(null);
+    setGeneratedXML("");
   };
 
   const resetToOriginal = () => {
@@ -720,6 +725,13 @@ function App() {
                   <div className="flex justify-center py-16">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent"></div>
                   </div>
+                ) : vendor === "fastdds" ? (
+                  // For FastDDS, use the profile editor
+                  <FastDDSProfileEditor
+                    uploadedData={uploadedFastDDSData}
+                    onXMLGenerate={setGeneratedXML}
+                    excludeDefaults={excludeDefaults}
+                  />
                 ) : fields.length === 0 ? (
                   <div className="p-6">
                     <Card>

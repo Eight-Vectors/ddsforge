@@ -58,13 +58,17 @@ export const validateXML = (
     }
   } else if (vendor === "fastdds") {
     // Check for required root element
-    if (!xmlString.includes("<dds>") && !xmlString.includes("<DDS>")) {
+    if (!xmlString.includes("<dds") && !xmlString.includes("<DDS")) {
       errors.push("Missing required root element <dds>");
     }
 
-    // Check for profiles element
-    if (!xmlString.includes("<profiles>")) {
-      errors.push("Missing required <profiles> element");
+    // Check for at least one of: profiles, log, or types element
+    const hasProfiles = xmlString.includes("<profiles");
+    const hasLog = xmlString.includes("<log");
+    const hasTypes = xmlString.includes("<types");
+    
+    if (!hasProfiles && !hasLog && !hasTypes) {
+      errors.push("FastDDS XML must contain at least one of: profiles, log, or types elements");
     }
 
     // Validate domain ID if present
@@ -85,8 +89,23 @@ export const validateXML = (
   if (emptyElements) {
     const problematicEmpty = emptyElements.filter((el) => {
       const tagName = el.match(/<(\w+)/)?.[1];
-      // These elements can be empty
-      const allowedEmpty = ["Enable", "Disable", "NetworkInterface"];
+      // Check if element has attributes - if it does, it's not truly empty
+      const hasAttributes = /\s+\w+\s*=\s*["']/.test(el);
+      if (hasAttributes) {
+        return false; // Elements with attributes are valid even if self-closing
+      }
+      // These elements can be empty even without attributes
+      const allowedEmpty = [
+        // CycloneDDS elements
+        "Enable", "Disable", "NetworkInterface", "Peer",
+        // FastDDS elements that can be empty
+        "dataRepresentation", "unicastLocatorList", "multicastLocatorList",
+        "external_unicast_locators", "propertiesPolicy", "userDefinedTransportDescriptors",
+        "remoteLocators", "historyMemoryPolicy", "properties", "allocation",
+        "userData", "topicData", "groupData", "partitions", "remoteServerAttributes",
+        "defaultUnicastLocatorList", "defaultMulticastLocatorList", "initialPeersList",
+        "metatrafficUnicastLocatorList", "metatrafficMulticastLocatorList", "discoveryServersList"
+      ];
       return tagName && !allowedEmpty.includes(tagName);
     });
 

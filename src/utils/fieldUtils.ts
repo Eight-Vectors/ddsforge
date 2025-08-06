@@ -7,7 +7,21 @@ export const isFieldModified = (currentField: FormField, originalFields: FormFie
     return true;
   }
   
-  return JSON.stringify(currentField.value) !== JSON.stringify(originalField.value);
+  // Special handling for FastDDS default values
+  // When a field has never been modified, both values should be identical
+  const currentValue = currentField.value;
+  const originalValue = originalField.value;
+  
+  // Handle null/undefined/empty string as equivalent for comparison
+  const normalizeValue = (val: any) => {
+    if (val === null || val === undefined || val === '') return null;
+    return val;
+  };
+  
+  const normalizedCurrent = normalizeValue(currentValue);
+  const normalizedOriginal = normalizeValue(originalValue);
+  
+  return JSON.stringify(normalizedCurrent) !== JSON.stringify(normalizedOriginal);
 };
 
 export const findFieldByPath = (fields: FormField[], path: string[]): FormField | undefined => {

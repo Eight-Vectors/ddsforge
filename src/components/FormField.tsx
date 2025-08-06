@@ -13,6 +13,7 @@ interface FormFieldProps {
   isModified?: boolean;
   originalFields?: FormFieldType[];
   validationError?: string;
+  disableModifiedCheck?: boolean;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
@@ -22,6 +23,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   isModified = false,
   originalFields = [],
   validationError,
+  disableModifiedCheck = false,
 }) => {
   const handleChange = (value: any) => {
     onChange(field.path, value);
@@ -84,6 +86,7 @@ export const FormField: React.FC<FormFieldProps> = ({
             field={field}
             onChange={onChange}
             originalFields={originalFields}
+            disableModifiedCheck={disableModifiedCheck}
           />
         );
 
@@ -94,6 +97,7 @@ export const FormField: React.FC<FormFieldProps> = ({
             onChange={onChange}
             originalFields={originalFields}
             isModified={isModified}
+            disableModifiedCheck={disableModifiedCheck}
           />
         );
 
@@ -121,11 +125,11 @@ export const FormField: React.FC<FormFieldProps> = ({
 
   // For simple fields at top level, wrap in a card
   return (
-    <Card className={isModified ? "border-blue-500 shadow-md shadow-blue-100" : ""}>
+    <Card className={!disableModifiedCheck && isModified ? "border-blue-500 shadow-md shadow-blue-100" : ""}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           {field.label}
-          {isModified && (
+          {!disableModifiedCheck && isModified && (
             <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-1 rounded">
               Modified
             </span>

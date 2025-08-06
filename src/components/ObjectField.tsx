@@ -11,18 +11,20 @@ interface ObjectFieldProps {
   onChange: (path: string[], value: any) => void;
   originalFields?: FormFieldType[];
   isModified?: boolean;
+  disableModifiedCheck?: boolean;
 }
 
-export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, originalFields = [], isModified = false }) => {
+export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, originalFields = [], isModified = false, disableModifiedCheck = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Check if any child field is modified
-  const hasModifiedChildren = field.fields?.some(subField => 
+  // If disableModifiedCheck is true, don't check for modifications
+  const hasModifiedChildren = disableModifiedCheck ? false : (field.fields?.some(subField => 
     isFieldModified(subField, originalFields)
-  ) || false;
+  ) || false);
 
   return (
-    <Card className={isModified || hasModifiedChildren ? "border-blue-500 shadow-md shadow-blue-100" : ""}>
+    <Card className={!disableModifiedCheck && (isModified || hasModifiedChildren) ? "border-blue-500 shadow-md shadow-blue-100" : ""}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
@@ -30,7 +32,7 @@ export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, origi
               {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <CardTitle className="text-lg flex items-center gap-2">
                 {field.label}
-                {(isModified || hasModifiedChildren) && (
+                {!disableModifiedCheck && (isModified || hasModifiedChildren) && (
                   <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-1 rounded">
                     Modified
                   </span>
@@ -49,19 +51,20 @@ export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, origi
                     key={subField.name}
                     field={subField}
                     onChange={onChange}
-                    isModified={isFieldModified(subField, originalFields)}
+                    isModified={disableModifiedCheck ? false : isFieldModified(subField, originalFields)}
                     originalFields={originalFields}
+                    disableModifiedCheck={disableModifiedCheck}
                   />
                 );
               }
               
               // For simple fields inside object, render inline
-              const fieldIsModified = isFieldModified(subField, originalFields);
+              const fieldIsModified = disableModifiedCheck ? false : isFieldModified(subField, originalFields);
               return (
                 <div key={subField.name} className={fieldIsModified ? "p-2 rounded-md bg-blue-50 border border-blue-200" : ""}>
                   <label htmlFor={subField.name} className="text-base font-medium flex items-center gap-2">
                     {subField.label}
-                    {fieldIsModified && (
+                    {!disableModifiedCheck && fieldIsModified && (
                       <span className="text-xs font-normal text-blue-600 bg-white px-2 py-0.5 rounded">
                         Modified
                       </span>
@@ -75,6 +78,7 @@ export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, origi
                     onChange={onChange}
                     isInline={true}
                     isModified={fieldIsModified}
+                    disableModifiedCheck={disableModifiedCheck}
                   />
                 </div>
               );

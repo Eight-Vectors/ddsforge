@@ -8,9 +8,10 @@ interface ArrayFieldProps {
   field: FormFieldType;
   onChange: (path: string[], value: any) => void;
   originalFields?: FormFieldType[];
+  disableModifiedCheck?: boolean;
 }
 
-export const ArrayField: React.FC<ArrayFieldProps> = ({ field, onChange, originalFields = [] }) => {
+export const ArrayField: React.FC<ArrayFieldProps> = ({ field, onChange, originalFields = [], disableModifiedCheck = false }) => {
   const addItem = () => {
     const newItem = field.fields && field.fields.length > 0 ? createEmptyObject(field.fields) : '';
     const newArray = [...(field.value || []), newItem];
@@ -108,7 +109,8 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({ field, onChange, origina
                         updateItem(index, newItem);
                       }}
                       originalFields={originalFields}
-                      isModified={isFieldModified(currentField, originalFields)}
+                      isModified={disableModifiedCheck ? false : isFieldModified(currentField, originalFields)}
+                      disableModifiedCheck={disableModifiedCheck}
                     />
                   );
                 })}
