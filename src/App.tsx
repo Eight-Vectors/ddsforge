@@ -14,7 +14,7 @@ import { parseXMLInBrowser } from "./utils/browserXmlParser";
 import { isFieldModified } from "./utils/fieldUtils";
 import { smartMergeFastDDS } from "./utils/fastddsUtils";
 import { validateXML, validateFieldValue } from "./utils/xmlValidator";
-import { Download, FileText, RotateCcw } from "lucide-react";
+import { Download, FileText, RotateCcw, Eye } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 
@@ -180,6 +180,10 @@ function App() {
   };
 
   const handleDownloadClick = () => {
+    downloadXML();
+  };
+
+  const handlePreviewClick = () => {
     setValidationStatus('idle');
     setValidationErrors([]);
     setShowPreviewDialog(true);
@@ -675,6 +679,14 @@ function App() {
               </div>
 
               <Button
+                onClick={handlePreviewClick}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                Preview XML
+              </Button>
+              <Button
                 onClick={handleDownloadClick}
                 className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
               >
@@ -728,8 +740,12 @@ function App() {
 
         {/* Download Preview Dialog */}
         {showPreviewDialog && (
-          <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <>
+            {/* Backdrop with blur */}
+            <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/30" onClick={handleCancelFromPreview} />
+            {/* Dialog */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
               <div className="p-6 border-b">
                 <div className="flex justify-between items-start mb-2">
                   <div>
@@ -794,6 +810,7 @@ function App() {
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>

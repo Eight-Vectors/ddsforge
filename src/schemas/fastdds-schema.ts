@@ -4,7 +4,7 @@ export const fastDDSSchema = {
     '@_xmlns': 'http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles',
     profiles: {
       '@_xmlns': 'http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles',
-      participant: {
+      participant: [{
         '@_profile_name': 'default_participant',
         '@_is_default_profile': true,
         rtps: {
@@ -92,8 +92,8 @@ export const fastDDSSchema = {
           },
           mutation_tries: 100
         }
-      },
-      data_writer: {
+      }],
+      data_writer: [{
         '@_profile_name': 'default_datawriter',
         '@_is_default_profile': true,
         qos: {
@@ -182,8 +182,8 @@ export const fastDDSSchema = {
           maximum: 0,
           increment: 1
         }
-      },
-      data_reader: {
+      }],
+      data_reader: [{
         '@_profile_name': 'default_datareader',
         '@_is_default_profile': true,
         qos: {
@@ -248,8 +248,8 @@ export const fastDDSSchema = {
           maximum: 0,
           increment: 1
         }
-      },
-      topic: {
+      }],
+      topic: [{
         '@_profile_name': 'default_topic',
         '@_is_default_profile': true,
         historyQos: {
@@ -262,7 +262,7 @@ export const fastDDSSchema = {
           max_samples_per_instance: 400,
           allocated_samples: 100
         }
-      }
+      }]
     },
     log: {
       verbosity: 'Info',

@@ -12,6 +12,11 @@ export const getFastDDSDefault = (path: string[]): any => {
   
   for (const key of adjustedPath) {
     if (current && typeof current === 'object') {
+      // Handle arrays - get the first element as default
+      if (Array.isArray(current)) {
+        current = current[0];
+      }
+      
       const actualKey = Object.keys(current).find(k => k === key || k.toLowerCase() === key.toLowerCase());
       
       if (actualKey && actualKey in current) {
@@ -55,10 +60,26 @@ export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
       '@_xmlns': uploadedData.profiles?.['@_xmlns'] || schema.profiles?.['@_xmlns']
     };
     
-    // Include uploaded profiles
+    // Handle profile types that should be arrays
+    const profileTypes = ['participant', 'data_writer', 'data_reader', 'topic'];
+    
+    profileTypes.forEach(type => {
+      if (uploadedData.profiles?.[type]) {
+        // Ensure it's always an array
+        const profiles = Array.isArray(uploadedData.profiles[type]) 
+          ? uploadedData.profiles[type] 
+          : [uploadedData.profiles[type]];
+        result.profiles[type] = profiles;
+      } else if (schema.profiles?.[type]) {
+        // Use schema default if no uploaded data
+        result.profiles[type] = schema.profiles[type];
+      }
+    });
+    
+    // Include any other profile properties
     if (uploadedData.profiles) {
       Object.keys(uploadedData.profiles).forEach(key => {
-        if (!key.startsWith('@_')) {
+        if (!key.startsWith('@_') && !profileTypes.includes(key)) {
           result.profiles[key] = uploadedData.profiles[key];
         }
       });
