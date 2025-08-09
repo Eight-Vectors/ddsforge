@@ -1,5 +1,6 @@
 import { XMLValidator } from "fast-xml-parser";
 import type { DDSVendor } from "../types/dds";
+import { validateZenohConfig, validateZenohFieldValue } from "./zenohValidator";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -7,13 +8,19 @@ export interface ValidationResult {
 }
 
 export const validateXML = (
-  xmlString: string,
+  content: string,
   vendor: DDSVendor
 ): ValidationResult => {
+  // Handle Zenoh JSON validation
+  if (vendor === "zenoh") {
+    return validateZenohConfig(content);
+  }
+  
+  // Handle XML validation for DDS vendors
   const errors: string[] = [];
 
   // First, check if the XML is well-formed
-  const validationResult = XMLValidator.validate(xmlString, {
+  const validationResult = XMLValidator.validate(content, {
     allowBooleanAttributes: true,
     unpairedTags: [],
   });
@@ -33,19 +40,19 @@ export const validateXML = (
   if (vendor === "cyclonedds") {
     // Check for required root element
     if (
-      !xmlString.includes("<CycloneDDS") &&
-      !xmlString.includes("<cyclonedds")
+      !content.includes("<CycloneDDS") &&
+      !content.includes("<cyclonedds")
     ) {
       errors.push("Missing required root element <CycloneDDS>");
     }
 
     // Check for Domain element
-    if (!xmlString.includes("<Domain")) {
+    if (!content.includes("<Domain")) {
       errors.push("Missing required <Domain> element");
     }
 
     // Validate domain ID format if present
-    const domainIdMatch = xmlString.match(/Id\s*=\s*["']([^"']+)["']/);
+    const domainIdMatch = content.match(/Id\s*=\s*["']([^"']+)["']/);
     if (domainIdMatch && domainIdMatch[1] !== "any") {
       const domainId = domainIdMatch[1];
       if (
@@ -58,21 +65,21 @@ export const validateXML = (
     }
   } else if (vendor === "fastdds") {
     // Check for required root element
-    if (!xmlString.includes("<dds") && !xmlString.includes("<DDS")) {
+    if (!content.includes("<dds") && !content.includes("<DDS")) {
       errors.push("Missing required root element <dds>");
     }
 
     // Check for at least one of: profiles, log, or types element
-    const hasProfiles = xmlString.includes("<profiles");
-    const hasLog = xmlString.includes("<log");
-    const hasTypes = xmlString.includes("<types");
+    const hasProfiles = content.includes("<profiles");
+    const hasLog = content.includes("<log");
+    const hasTypes = content.includes("<types");
     
     if (!hasProfiles && !hasLog && !hasTypes) {
       errors.push("FastDDS XML must contain at least one of: profiles, log, or types elements");
     }
 
     // Validate domain ID if present
-    const domainIdMatch = xmlString.match(/<domainId>(\d+)<\/domainId>/);
+    const domainIdMatch = content.match(/<domainId>(\d+)<\/domainId>/);
     if (domainIdMatch) {
       const domainId = parseInt(domainIdMatch[1]);
       if (domainId < 0 || domainId > 232) {
@@ -85,7 +92,7 @@ export const validateXML = (
 
   // Check for empty elements that shouldn't be empty
   const emptyElementPattern = /<(\w+)(\s+[^>]*)?\s*\/>/g;
-  const emptyElements = xmlString.match(emptyElementPattern);
+  const emptyElements = content.match(emptyElementPattern);
   if (emptyElements) {
     const problematicEmpty = emptyElements.filter((el) => {
       const tagName = el.match(/<(\w+)/)?.[1];
@@ -120,7 +127,7 @@ export const validateXML = (
 
   // Check for duplicate profile names in FastDDS
   if (vendor === "fastdds") {
-    const profileNames = xmlString.match(
+    const profileNames = content.match(
       /profile_name\s*=\s*["']([^"']+)["']/g
     );
     if (profileNames) {
@@ -150,8 +157,12 @@ export const validateXML = (
 export const validateFieldValue = (
   fieldPath: string[],
   value: any,
-  _vendor: DDSVendor
+  vendor: DDSVendor
 ): string | null => {
+  // Handle Zenoh field validation
+  if (vendor === "zenoh") {
+    return validateZenohFieldValue(fieldPath, value);
+  }
   const path = fieldPath.join(".");
 
   // Common validations

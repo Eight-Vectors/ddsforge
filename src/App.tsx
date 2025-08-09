@@ -14,6 +14,14 @@ import {
 import { parseXMLInBrowser } from "./utils/browserXmlParser";
 import { isFieldModified } from "./utils/fieldUtils";
 import { validateXML, validateFieldValue } from "./utils/xmlValidator";
+import {
+  parseJSON5,
+  jsonToFormFields,
+  formFieldsToJSON,
+  buildJSON,
+  getZenohSchema,
+  mergeWithSchema,
+} from "./utils/jsonParser";
 import { Download, FileText, RotateCcw, Eye } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -28,7 +36,9 @@ function App() {
   const [excludeDefaults, setExcludeDefaults] = useState<boolean>(true); // Default to minimal output
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [validationStatus, setValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [validationStatus, setValidationStatus] = useState<
+    "idle" | "valid" | "invalid"
+  >("idle");
   const [fieldValidationErrors, setFieldValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -41,43 +51,59 @@ function App() {
 
     // Set the download filename to the uploaded filename (without extension)
     if (fileName) {
-      const nameWithoutExt = fileName.replace(/\.xml$/i, "");
+      const nameWithoutExt = fileName.replace(/\.(xml|json|json5)$/i, "");
       setDownloadFilename(nameWithoutExt);
     }
 
     try {
       const detectedVendor = detectVendor(content);
       if (!detectedVendor) {
-        throw new Error("Unable to detect DDS vendor from XML file");
+        throw new Error("Unable to detect configuration type from file");
       }
 
       setVendor(detectedVendor);
-      const parsed = parseXMLInBrowser(content);
 
-      // Extract the root element based on vendor
-      let uploadedData;
-      if (detectedVendor === "cyclonedds") {
-        uploadedData = parsed.CycloneDDS || parsed.cyclonedds;
-      } else {
-        uploadedData = parsed.dds || parsed.DDS;
-      }
-
-      if (detectedVendor === "fastdds") {
-        // For FastDDS, store the uploaded data for the profile editor
-        setUploadedFastDDSData(uploadedData);
-      } else {
-        // For CycloneDDS, use the existing form-based approach
-        const schema = getSchemaForVendor(detectedVendor);
-        const mergedData = mergeUploadedDataIntoSchema(
-          uploadedData,
-          schema.CycloneDDS
-        );
-        const formFields = xmlToFormFields(mergedData);
+      if (detectedVendor === "zenoh") {
+        // Handle Zenoh JSON config
+        const parsed = parseJSON5(content);
+        const schema = getZenohSchema();
+        const mergedData = mergeWithSchema(parsed, schema);
+        const formFields = jsonToFormFields(mergedData, schema);
         setFields(formFields);
         setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+      } else {
+        // Handle XML configs (FastDDS and CycloneDDS)
+        const parsed = parseXMLInBrowser(content);
+
+        // Extract the root element based on vendor
+        let uploadedData;
+        if (detectedVendor === "cyclonedds") {
+          uploadedData = parsed.CycloneDDS || parsed.cyclonedds;
+        } else {
+          uploadedData = parsed.dds || parsed.DDS;
+        }
+
+        if (detectedVendor === "fastdds") {
+          // For FastDDS, store the uploaded data for the profile editor
+          setUploadedFastDDSData(uploadedData);
+        } else {
+          // For CycloneDDS, use the existing form-based approach
+          const schema = getSchemaForVendor(detectedVendor);
+          const mergedData = mergeUploadedDataIntoSchema(
+            uploadedData,
+            schema.CycloneDDS
+          );
+          const formFields = xmlToFormFields(mergedData);
+          setFields(formFields);
+          setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to parse XML file");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to parse configuration file"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -88,13 +114,29 @@ function App() {
     setVendor(selectedVendor);
 
     // Set default filename for new files
-    const defaultName =
-      selectedVendor === "cyclonedds" ? "cyclonedds-config" : "fastdds-config";
+    let defaultName = "";
+    switch (selectedVendor) {
+      case "cyclonedds":
+        defaultName = "cyclonedds-config";
+        break;
+      case "fastdds":
+        defaultName = "fastdds-config";
+        break;
+      case "zenoh":
+        defaultName = "zenoh-config";
+        break;
+    }
     setDownloadFilename(defaultName);
 
     if (selectedVendor === "fastdds") {
       // For FastDDS, just set the vendor, the profile editor will handle the rest
       setUploadedFastDDSData(null);
+    } else if (selectedVendor === "zenoh") {
+      // For Zenoh, use JSON-based approach
+      const schema = getZenohSchema();
+      const formFields = jsonToFormFields(schema, schema);
+      setFields(formFields);
+      setOriginalFields(JSON.parse(JSON.stringify(formFields)));
     } else {
       // For CycloneDDS, use the existing form-based approach
       const schema = getSchemaForVendor(selectedVendor);
@@ -162,6 +204,10 @@ function App() {
     if (vendor === "fastdds") {
       // For FastDDS, use the generated XML from the profile editor
       return generatedXML;
+    } else if (vendor === "zenoh") {
+      // For Zenoh, generate JSON from form fields
+      const jsonData = formFieldsToJSON(fields, excludeDefaults);
+      return buildJSON(jsonData, true);
     } else {
       // For CycloneDDS, generate XML from form fields
       const xmlData = formFieldsToXML(fields, excludeDefaults, vendor);
@@ -170,12 +216,16 @@ function App() {
   };
 
   const downloadXML = () => {
-    const xml = generateXML();
-    const blob = new Blob([xml], { type: "text/xml" });
+    const content = generateXML();
+    const isJSON = vendor === "zenoh";
+    const mimeType = isJSON ? "application/json" : "text/xml";
+    const extension = isJSON ? ".json" : ".xml";
+
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${downloadFilename || vendor + "-config"}.xml`;
+    a.download = `${downloadFilename || vendor + "-config"}${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -187,7 +237,7 @@ function App() {
   };
 
   const handlePreviewClick = () => {
-    setValidationStatus('idle');
+    setValidationStatus("idle");
     setValidationErrors([]);
     setShowPreviewDialog(true);
   };
@@ -197,7 +247,7 @@ function App() {
     if (vendor) {
       const validation = validateXML(xml, vendor);
       setValidationErrors(validation.errors);
-      setValidationStatus(validation.errors.length === 0 ? 'valid' : 'invalid');
+      setValidationStatus(validation.errors.length === 0 ? "valid" : "invalid");
     }
   };
 
@@ -208,7 +258,7 @@ function App() {
 
   const handleCancelFromPreview = () => {
     setShowPreviewDialog(false);
-    setValidationStatus('idle');
+    setValidationStatus("idle");
     setValidationErrors([]);
   };
 
@@ -234,7 +284,7 @@ function App() {
   const renderFieldsForVendor = (fieldsToRender: FormField[]) => {
     console.log("renderFieldsForVendor called with:", fieldsToRender);
     console.log("Current vendor:", vendor);
-    
+
     // Extract top-level sections for two-column layout
     let sectionsToRender: FormField[] = [];
     let domainHeaderField: FormField | null = null;
@@ -306,8 +356,12 @@ function App() {
     } else if (vendor === "fastdds") {
       // Collect all fields/sections to display
       let allFieldsToDisplay: FormField[] = [];
-      
-      if (fieldsToRender.length === 1 && fieldsToRender[0].type === "object" && fieldsToRender[0].fields) {
+
+      if (
+        fieldsToRender.length === 1 &&
+        fieldsToRender[0].type === "object" &&
+        fieldsToRender[0].fields
+      ) {
         // Extract all base sections and their subsections
         const rootField = fieldsToRender[0];
         rootField.fields?.forEach((baseSection: FormField) => {
@@ -357,7 +411,7 @@ function App() {
               ))}
             </div>
           </div>
-          
+
           {/* Right Section - 50% */}
           <div className="w-1/2 p-6 overflow-y-auto">
             <div className="space-y-6">
@@ -390,13 +444,17 @@ function App() {
           <div className="px-6 pt-4 pb-2">
             <Card className="shadow-sm">
               <CardHeader className="py-3">
-                <CardTitle className="text-lg">{domainHeaderField.label}</CardTitle>
+                <CardTitle className="text-lg">
+                  {domainHeaderField.label}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pb-3">
                 <div className="flex items-center gap-4">
                   {domainHeaderField.fields?.map((field) => (
                     <div key={field.name} className="flex items-center gap-2">
-                      <label className="text-sm font-medium">{field.label}:</label>
+                      <label className="text-sm font-medium">
+                        {field.label}:
+                      </label>
                       <div className="w-32">
                         <FormFieldComponent
                           field={field}
@@ -404,7 +462,9 @@ function App() {
                           isInline={true}
                           isModified={isFieldModified(field, originalFields)}
                           originalFields={originalFields}
-                          validationError={fieldValidationErrors[field.path.join(".")]}
+                          validationError={
+                            fieldValidationErrors[field.path.join(".")]
+                          }
                         />
                       </div>
                     </div>
@@ -426,12 +486,14 @@ function App() {
                     onChange={handleFieldChange}
                     isModified={isFieldModified(field, originalFields)}
                     originalFields={originalFields}
-                    validationError={fieldValidationErrors[field.path.join(".")]}
+                    validationError={
+                      fieldValidationErrors[field.path.join(".")]
+                    }
                   />
                 ))}
               </div>
             </div>
-            
+
             {/* Right Section - 50% */}
             <div className="w-1/2 p-6 overflow-y-auto">
               <div className="space-y-6">
@@ -442,7 +504,9 @@ function App() {
                     onChange={handleFieldChange}
                     isModified={isFieldModified(field, originalFields)}
                     originalFields={originalFields}
-                    validationError={fieldValidationErrors[field.path.join(".")]}
+                    validationError={
+                      fieldValidationErrors[field.path.join(".")]
+                    }
                   />
                 ))}
               </div>
@@ -567,203 +631,227 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full h-screen flex flex-col">
-        {/* Header - Always visible */}
-        <div className="px-6 py-4 border-b bg-white shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6" />
-              <h1 className="text-2xl font-bold">
-                DDS XML Configuration Editor
-              </h1>
-            </div>
-            <p className="text-gray-600">Edit DDS XML files</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header - Always visible */}
+      <div className="px-6 py-4 border-b bg-white shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6" />
+            <h1 className="text-2xl font-bold">
+              DDS & Zenoh Configuration Editor
+            </h1>
           </div>
-          {vendor && (
-            <p className="text-sm text-gray-500 mt-2">
-              Edit values below • Modified fields will be highlighted
-            </p>
-          )}
+          <p className="text-gray-600">
+            Edit DDS XML and Zenoh JSON config files
+          </p>
         </div>
+        {vendor && (
+          <p className="text-sm text-gray-500 mt-2">
+            Edit values below • Modified fields will be highlighted
+          </p>
+        )}
+      </div>
 
-        {!vendor ? (
-          <div className="flex-1 p-6 overflow-auto">
-            <div className="max-w-4xl mx-auto space-y-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-center">
-                    Upload DDS Configuration
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-6 text-center">
-                    Upload an existing DDS XML configuration file to edit
-                  </p>
+      {!vendor ? (
+        <div className="flex-1 p-6 overflow-auto">
+          <div className="max-w-4xl mx-auto space-y-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-center">
+                  Upload Configuration File
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-6 text-center">
+                  Upload an existing DDS XML or Zenoh JSON configuration file to
+                  edit
+                </p>
 
-                  {/* Create new DDS file buttons */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <Button
-                      onClick={() => handleVendorSelect("fastdds")}
-                      variant="outline"
-                      className="h-auto flex flex-col items-center gap-2 p-6"
-                    >
-                      <FileText className="h-8 w-8" />
-                      <div className="text-center">
-                        <h3 className="font-semibold">FastDDS</h3>
-                        <p className="text-sm text-gray-600">
-                          eProsima Fast DDS Configuration
-                        </p>
-                      </div>
-                    </Button>
+                {/* Create new DDS file buttons */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <Button
+                    onClick={() => handleVendorSelect("fastdds")}
+                    variant="outline"
+                    className="h-auto flex flex-col items-center gap-2 p-6"
+                  >
+                    <FileText className="h-8 w-8" />
+                    <div className="text-center">
+                      <h3 className="font-semibold">FastDDS</h3>
+                      <p className="text-sm text-gray-600">
+                        eProsima Fast DDS Configuration
+                      </p>
+                    </div>
+                  </Button>
 
-                    <Button
-                      onClick={() => handleVendorSelect("cyclonedds")}
-                      variant="outline"
-                      className="h-auto flex flex-col items-center gap-2 p-6"
-                    >
-                      <FileText className="h-8 w-8" />
-                      <div className="text-center">
-                        <h3 className="font-semibold">CycloneDDS</h3>
-                        <p className="text-sm text-gray-600">
-                          Eclipse CycloneDDS Configuration
-                        </p>
-                      </div>
-                    </Button>
+                  <Button
+                    onClick={() => handleVendorSelect("cyclonedds")}
+                    variant="outline"
+                    className="h-auto flex flex-col items-center gap-2 p-6"
+                  >
+                    <FileText className="h-8 w-8" />
+                    <div className="text-center">
+                      <h3 className="font-semibold">CycloneDDS</h3>
+                      <p className="text-sm text-gray-600">
+                        Eclipse CycloneDDS Configuration
+                      </p>
+                    </div>
+                  </Button>
+
+                  <Button
+                    onClick={() => handleVendorSelect("zenoh")}
+                    variant="outline"
+                    className="h-auto flex flex-col items-center gap-2 p-6"
+                  >
+                    <FileText className="h-8 w-8" />
+                    <div className="text-center">
+                      <h3 className="font-semibold">Zenoh</h3>
+                      <p className="text-sm text-gray-600">
+                        Eclipse Zenoh Configuration
+                      </p>
+                    </div>
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
                   </div>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-4 bg-gray-50 text-gray-600">
-                        Or upload existing XML
-                      </span>
-                    </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-gray-50 text-gray-600">
+                      Or upload existing XML
+                    </span>
                   </div>
+                </div>
 
-                  <FileUpload onFileUpload={handleFileUpload} />
+                <FileUpload onFileUpload={handleFileUpload} />
 
-                  {error && (
-                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                      <p className="text-red-600">{error}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                {error && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-600">{error}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Action Buttons */}
-            <div className="px-6 py-4 bg-white border-b flex gap-3 items-center flex-wrap">
-              <div className="flex items-center gap-2">
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Action Buttons */}
+          <div className="px-6 py-4 bg-white border-b flex gap-3 items-center flex-wrap">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={downloadFilename}
+                onChange={(e) => setDownloadFilename(e.target.value)}
+                placeholder="filename"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <span className="text-gray-500">
+                {vendor === "zenoh" ? ".json" : ".xml"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="text"
-                  value={downloadFilename}
-                  onChange={(e) => setDownloadFilename(e.target.value)}
-                  placeholder="filename"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  type="checkbox"
+                  checked={excludeDefaults}
+                  onChange={(e) => setExcludeDefaults(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                 />
-                <span className="text-gray-500">.xml</span>
-              </div>
+                <span className="text-sm text-gray-700">
+                  Minimal output (non-defaults only)
+                </span>
+              </label>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={excludeDefaults}
-                    onChange={(e) => setExcludeDefaults(e.target.checked)}
-                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Minimal output (non-defaults only)
-                  </span>
-                </label>
-              </div>
-
-              <Button
-                onClick={handlePreviewClick}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Eye className="w-4 h-4" />
-                Preview XML
-              </Button>
-              <Button
-                onClick={handleDownloadClick}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-              >
-                <Download className="w-4 h-4" />
-                Download XML
-              </Button>
+            <Button
+              onClick={handlePreviewClick}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              Preview {vendor === "zenoh" ? "Config" : "XML"}
+            </Button>
+            <Button
+              onClick={handleDownloadClick}
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+            >
+              <Download className="w-4 h-4" />
+              Download {vendor === "zenoh" ? "Config" : "XML"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={reset}
+              className="flex items-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Start Over
+            </Button>
+            {originalFields.length > 0 && (
               <Button
                 variant="outline"
-                onClick={reset}
+                onClick={resetToOriginal}
                 className="flex items-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" />
-                Start Over
+                Reset to Original
               </Button>
-              {originalFields.length > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={resetToOriginal}
-                  className="flex items-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Reset to Original
-                </Button>
+            )}
+          </div>
+
+          <div className="flex-1 flex overflow-hidden">
+            {/* Configuration Form - Scrollable */}
+            <div className="flex-1 overflow-hidden">
+              {isLoading ? (
+                <div className="flex justify-center py-16">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent"></div>
+                </div>
+              ) : vendor === "fastdds" ? (
+                // For FastDDS, use the profile editor
+                <FastDDSProfileEditor
+                  uploadedData={uploadedFastDDSData}
+                  onXMLGenerate={setGeneratedXML}
+                  excludeDefaults={excludeDefaults}
+                />
+              ) : fields.length === 0 ? (
+                <div className="p-6">
+                  <Card>
+                    <CardContent className="py-16">
+                      <p className="text-center text-gray-500">
+                        No configuration fields available.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                renderFieldsForVendor(fields)
               )}
             </div>
-
-            <div className="flex-1 flex overflow-hidden">
-              {/* Configuration Form - Scrollable */}
-              <div className="flex-1 overflow-hidden">
-                {isLoading ? (
-                  <div className="flex justify-center py-16">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent"></div>
-                  </div>
-                ) : vendor === "fastdds" ? (
-                  // For FastDDS, use the profile editor
-                  <FastDDSProfileEditor
-                    uploadedData={uploadedFastDDSData}
-                    onXMLGenerate={setGeneratedXML}
-                    excludeDefaults={excludeDefaults}
-                  />
-                ) : fields.length === 0 ? (
-                  <div className="p-6">
-                    <Card>
-                      <CardContent className="py-16">
-                        <p className="text-center text-gray-500">
-                          No configuration fields available.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                ) : (
-                  renderFieldsForVendor(fields)
-                )}
-              </div>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Download Preview Dialog */}
-        {showPreviewDialog && (
-          <>
-            {/* Backdrop with blur */}
-            <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/30" onClick={handleCancelFromPreview} />
-            {/* Dialog */}
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-              <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
+      {/* Download Preview Dialog */}
+      {showPreviewDialog && (
+        <>
+          {/* Backdrop with blur */}
+          <div
+            className="fixed inset-0 z-40 backdrop-blur-sm bg-black/30"
+            onClick={handleCancelFromPreview}
+          />
+          {/* Dialog */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
               <div className="p-6 border-b">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h2 className="text-2xl font-bold mb-2">XML Preview</h2>
+                    <h2 className="text-2xl font-bold mb-2">
+                      {vendor === "zenoh" ? "Config" : "XML"} Preview
+                    </h2>
                     <p className="text-gray-600">
-                      Review your XML configuration before downloading
+                      Review your {vendor === "zenoh" ? "JSON" : "XML"}{" "}
+                      configuration before downloading
                     </p>
                   </div>
                   <Button
@@ -772,36 +860,47 @@ function App() {
                     className="flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
-                    Validate XML
+                    Validate {vendor === "zenoh" ? "Config" : "XML"}
                   </Button>
                 </div>
-                
+
                 {/* Show validation status */}
-                {validationStatus === 'valid' && (
+                {validationStatus === "valid" && (
                   <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-green-600 font-semibold flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
-                      Valid XML
+                      Valid {vendor === "zenoh" ? "JSON Configuration" : "XML"}
                     </p>
                   </div>
                 )}
-                
-                {validationStatus === 'invalid' && validationErrors.length > 0 && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-red-600 font-semibold mb-2">
-                      Validation Errors:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1">
-                      {validationErrors.map((error, index) => (
-                        <li key={index} className="text-red-600 text-sm">
-                          {error}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+
+                {validationStatus === "invalid" &&
+                  validationErrors.length > 0 && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-red-600 font-semibold mb-2">
+                        Validation Errors:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {validationErrors.map((error, index) => (
+                          <li key={index} className="text-red-600 text-sm">
+                            {error}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
               </div>
               <div className="flex-1 overflow-auto p-6">
                 <pre className="bg-gray-100 p-6 rounded-md text-sm font-mono overflow-x-auto whitespace-pre-wrap">
@@ -817,13 +916,37 @@ function App() {
                   className="bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Save XML
+                  Save {vendor === "zenoh" ? "Config" : "XML"}
                 </Button>
               </div>
             </div>
           </div>
-          </>
-        )}
+        </>
+      )}
+
+      {/* Footer */}
+      <div className="w-full py-4 px-6 bg-white border-t">
+        <div className="text-center text-sm text-gray-600">
+          Powered by{" "}
+          <a
+            href="https://www.eightvectors.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-purple-600 hover:text-purple-700 hover:underline"
+          >
+            EightVectors
+          </a>{" "}
+          • © {new Date().getFullYear()}{" "}
+          <a
+            href="https://www.eightvectors.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-purple-600 hover:underline"
+          >
+            EightVectors
+          </a>
+          . All rights reserved.
+        </div>
       </div>
     </div>
   );

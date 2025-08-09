@@ -17,7 +17,7 @@ export interface TypeDefinition {
     | "struct"
     | "enum"
     | "union"
-    | "typedef"  // Changed from alias
+    | "typedef" // Changed from alias
     | "bitmask"
     | "bitset";
   name: string;
@@ -49,7 +49,7 @@ export interface TypeDefinition {
   };
   case?: Array<{
     caseDiscriminator: Array<{
-      value: string | number | 'default';
+      value: string | number | "default";
     }>;
     member: {
       name: string;
@@ -202,16 +202,20 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
     const type = types[typeIndex];
     if (type.kind === "bitmask") {
       const newBitValue = {
-        name: `flag${(type.bit_value?.length || 0)}`,
-        position: type.bit_value?.length || 0
+        name: `flag${type.bit_value?.length || 0}`,
+        position: type.bit_value?.length || 0,
       };
       updateType(typeIndex, {
-        bit_value: [...(type.bit_value || []), newBitValue]
+        bit_value: [...(type.bit_value || []), newBitValue],
       });
     }
   };
 
-  const updateBitValue = (typeIndex: number, bitIndex: number, updates: any) => {
+  const updateBitValue = (
+    typeIndex: number,
+    bitIndex: number,
+    updates: any
+  ) => {
     const type = types[typeIndex];
     if (type.kind === "bitmask" && type.bit_value) {
       const newBitValues = [...type.bit_value];
@@ -236,16 +240,20 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
         caseDiscriminator: [{ value: type.case?.length || 0 }],
         member: {
           name: `member${(type.case?.length || 0) + 1}`,
-          type: "int32"
-        }
+          type: "int32",
+        },
       };
       updateType(typeIndex, {
-        case: [...(type.case || []), newCase]
+        case: [...(type.case || []), newCase],
       });
     }
   };
 
-  const updateUnionCase = (typeIndex: number, caseIndex: number, updates: any) => {
+  const updateUnionCase = (
+    typeIndex: number,
+    caseIndex: number,
+    updates: any
+  ) => {
     const type = types[typeIndex];
     if (type.kind === "union" && type.case) {
       const newCases = [...type.case];
@@ -268,15 +276,19 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
     if (type.kind === "bitset") {
       const newBitfield = {
         name: `field${(type.bitfield?.length || 0) + 1}`,
-        bit_bound: 1
+        bit_bound: 1,
       };
       updateType(typeIndex, {
-        bitfield: [...(type.bitfield || []), newBitfield]
+        bitfield: [...(type.bitfield || []), newBitfield],
       });
     }
   };
 
-  const updateBitfield = (typeIndex: number, fieldIndex: number, updates: any) => {
+  const updateBitfield = (
+    typeIndex: number,
+    fieldIndex: number,
+    updates: any
+  ) => {
     const type = types[typeIndex];
     if (type.kind === "bitset" && type.bitfield) {
       const newBitfields = [...type.bitfield];
@@ -578,10 +590,14 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                       <Label className="text-xs">Value (optional)</Label>
                       <Input
                         type="number"
-                        value={enumerator.value !== undefined ? enumerator.value : ""}
+                        value={
+                          enumerator.value !== undefined ? enumerator.value : ""
+                        }
                         onChange={(e) =>
                           updateEnumerator(index, enumIndex, {
-                            value: e.target.value ? parseInt(e.target.value) : undefined,
+                            value: e.target.value
+                              ? parseInt(e.target.value)
+                              : undefined,
                           })
                         }
                         className="h-8"
@@ -610,9 +626,15 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                     value={type.type || "int32"}
                     onValueChange={(value) => {
                       if (value === "nonBasic") {
-                        updateType(index, { type: value, nonBasicTypeName: "" });
+                        updateType(index, {
+                          type: value,
+                          nonBasicTypeName: "",
+                        });
                       } else {
-                        updateType(index, { type: value, nonBasicTypeName: undefined });
+                        updateType(index, {
+                          type: value,
+                          nonBasicTypeName: undefined,
+                        });
                       }
                     }}
                   >
@@ -687,10 +709,16 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                         <Label className="text-xs">Position</Label>
                         <Input
                           type="number"
-                          value={bitValue.position !== undefined ? bitValue.position : ""}
+                          value={
+                            bitValue.position !== undefined
+                              ? bitValue.position
+                              : ""
+                          }
                           onChange={(e) =>
                             updateBitValue(index, bitIndex, {
-                              position: e.target.value ? parseInt(e.target.value) : undefined,
+                              position: e.target.value
+                                ? parseInt(e.target.value)
+                                : undefined,
                             })
                           }
                           className="h-8"
@@ -726,8 +754,12 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PRIMITIVE_TYPES.filter(t => 
-                        t.includes('int') || t.includes('uint') || t === 'boolean' || t.includes('char')
+                      {PRIMITIVE_TYPES.filter(
+                        (t) =>
+                          t.includes("int") ||
+                          t.includes("uint") ||
+                          t === "boolean" ||
+                          t.includes("char")
                       ).map((t) => (
                         <SelectItem key={t} value={t}>
                           {t}
@@ -749,18 +781,32 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                     </Button>
                   </div>
                   {type.case?.map((unionCase, caseIndex) => (
-                    <div key={caseIndex} className="border p-3 rounded space-y-2">
+                    <div
+                      key={caseIndex}
+                      className="border p-3 rounded space-y-2"
+                    >
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <Label className="text-xs">Case Values (comma separated, or "default")</Label>
+                          <Label className="text-xs">
+                            Case Values (comma separated, or "default")
+                          </Label>
                           <Input
-                            value={unionCase.caseDiscriminator.map(c => c.value).join(", ")}
+                            value={unionCase.caseDiscriminator
+                              .map((c) => c.value)
+                              .join(", ")}
                             onChange={(e) => {
-                              const values = e.target.value.split(',').map(v => v.trim());
+                              const values = e.target.value
+                                .split(",")
+                                .map((v) => v.trim());
                               updateUnionCase(index, caseIndex, {
-                                caseDiscriminator: values.map(v => ({ 
-                                  value: v === 'default' ? 'default' : !isNaN(Number(v)) ? Number(v) : v 
-                                }))
+                                caseDiscriminator: values.map((v) => ({
+                                  value:
+                                    v === "default"
+                                      ? "default"
+                                      : !isNaN(Number(v))
+                                      ? Number(v)
+                                      : v,
+                                })),
                               });
                             }}
                             className="h-8"
@@ -783,7 +829,10 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                             value={unionCase.member.name}
                             onChange={(e) =>
                               updateUnionCase(index, caseIndex, {
-                                member: { ...unionCase.member, name: e.target.value }
+                                member: {
+                                  ...unionCase.member,
+                                  name: e.target.value,
+                                },
                               })
                             }
                             className="h-8"
@@ -795,7 +844,7 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                             value={unionCase.member.type}
                             onValueChange={(value) =>
                               updateUnionCase(index, caseIndex, {
-                                member: { ...unionCase.member, type: value }
+                                member: { ...unionCase.member, type: value },
                               })
                             }
                           >
@@ -808,7 +857,9 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                                   {t}
                                 </SelectItem>
                               ))}
-                              <SelectItem value="nonBasic">Custom Type</SelectItem>
+                              <SelectItem value="nonBasic">
+                                Custom Type
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -819,7 +870,10 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                               value={unionCase.member.nonBasicTypeName || ""}
                               onChange={(e) =>
                                 updateUnionCase(index, caseIndex, {
-                                  member: { ...unionCase.member, nonBasicTypeName: e.target.value }
+                                  member: {
+                                    ...unionCase.member,
+                                    nonBasicTypeName: e.target.value,
+                                  },
                                 })
                               }
                               className="h-8"

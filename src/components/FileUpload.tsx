@@ -24,7 +24,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
     onDrop,
     accept: {
       'text/xml': ['.xml'],
-      'application/xml': ['.xml']
+      'application/xml': ['.xml'],
+      'application/json': ['.json', '.json5'],
+      'text/json': ['.json', '.json5']
     },
     maxFiles: 1
   });
@@ -38,14 +40,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
       <input {...getInputProps()} />
       <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
       {isDragActive ? (
-        <p className="text-lg text-gray-600">Drop the XML file here...</p>
+        <p className="text-lg text-gray-600">Drop the configuration file here...</p>
       ) : (
         <>
           <p className="text-lg text-gray-600">
-            Drag & drop an XML configuration file here
+            Drag & drop a configuration file here
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            or click to select a file
+            Supports XML (.xml) and JSON (.json, .json5) files
           </p>
         </>
       )}

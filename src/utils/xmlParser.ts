@@ -64,8 +64,28 @@ export const buildXML = (data: any, vendor: DDSVendor): string => {
   return xml;
 };
 
-export const detectVendor = (xmlContent: string): DDSVendor | null => {
-  const lowerContent = xmlContent.toLowerCase();
+export const detectVendor = (content: string): DDSVendor | null => {
+  const lowerContent = content.toLowerCase();
+  
+  // First check if it's JSON
+  const trimmed = content.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // Try to detect Zenoh config
+    try {
+      // Check for Zenoh-specific fields
+      if (lowerContent.includes('"mode"') || 
+          lowerContent.includes('"scouting"') || 
+          lowerContent.includes('"routing"') ||
+          lowerContent.includes('"transport"') ||
+          lowerContent.includes('"adminspace"')) {
+        return 'zenoh';
+      }
+    } catch {
+      // Not JSON or failed to parse
+    }
+  }
+  
+  // Check for XML vendors
   if (lowerContent.includes('<cyclonedds') || lowerContent.includes('cdds.io')) {
     return 'cyclonedds';
   } else if (lowerContent.includes('<dds') || lowerContent.includes('profile_name') || lowerContent.includes('eprosima')) {
@@ -280,5 +300,15 @@ export const isInUploadedData = (path: string[], uploadedData: any): boolean => 
 
 // Get the appropriate schema based on vendor
 export const getSchemaForVendor = (vendor: DDSVendor): any => {
-  return vendor === 'cyclonedds' ? cycloneDDSSchema : fastDDSSchema;
+  switch (vendor) {
+    case 'cyclonedds':
+      return cycloneDDSSchema;
+    case 'fastdds':
+      return fastDDSSchema;
+    case 'zenoh':
+      // For Zenoh, we'll need to import and return the schema
+      return {}; // Placeholder - will be handled differently
+    default:
+      return {};
+  }
 };

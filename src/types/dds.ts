@@ -1,4 +1,4 @@
-export type DDSVendor = 'fastdds' | 'cyclonedds';
+export type DDSVendor = 'fastdds' | 'cyclonedds' | 'zenoh';
 
 export interface FormField {
   name: string;
