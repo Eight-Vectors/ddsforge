@@ -22,7 +22,7 @@ import {
 
 interface Profile {
   name: string;
-  type: string; // Now dynamic, not restricted to specific types
+  type: string;
   isDefault: boolean;
 }
 
@@ -34,6 +34,7 @@ interface ProfileManagerProps {
   onProfileDelete: (profileName: string) => void;
   onProfileRename: (oldName: string, newName: string) => void;
   onProfileDuplicate: (profileName: string, newName: string) => void;
+  disableMultipleProfiles?: boolean;
 }
 
 export function ProfileManager({
@@ -44,6 +45,7 @@ export function ProfileManager({
   onProfileDelete,
   onProfileRename,
   onProfileDuplicate,
+  disableMultipleProfiles = false,
 }: ProfileManagerProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -54,7 +56,6 @@ export function ProfileManager({
   const [profileToDuplicate, setProfileToDuplicate] = useState<string>("");
   const [error, setError] = useState("");
 
-  // Group profiles by type
   const profilesByType = profiles.reduce((acc, profile) => {
     if (!acc[profile.type]) acc[profile.type] = [];
     acc[profile.type].push(profile);
@@ -114,7 +115,6 @@ export function ProfileManager({
     transport_descriptor: "Transport Descriptor",
   };
 
-  // Get display label for profile type
   const getProfileTypeLabel = (type: string): string => {
     return (
       profileTypeLabels[type] ||
@@ -129,14 +129,16 @@ export function ProfileManager({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Profiles</h3>
-        <Button
-          size="sm"
-          onClick={() => setShowAddDialog(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-        >
-          <Plus className="w-4 h-4" />
-          Add Profile
-        </Button>
+        {!(disableMultipleProfiles && profiles.length > 0) && (
+          <Button
+            size="sm"
+            onClick={() => setShowAddDialog(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+          >
+            <Plus className="w-4 h-4" />
+            Add Profile
+          </Button>
+        )}
       </div>
 
       {Object.entries(profilesByType).map(([type, typeProfiles]) => (
@@ -161,11 +163,6 @@ export function ProfileManager({
                   <span className="font-medium truncate" title={profile.name}>
                     {profile.name}
                   </span>
-                  {profile.isDefault && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex-shrink-0">
-                      Default
-                    </span>
-                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                   <Button
@@ -181,33 +178,33 @@ export function ProfileManager({
                   >
                     <Edit2 className="w-3 h-3" />
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setProfileToDuplicate(profile.name);
-                      setShowDuplicateDialog(true);
-                    }}
-                    title="Duplicate"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                  {!profile.isDefault && (
+                  {!disableMultipleProfiles && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onProfileDelete(profile.name);
+                        setProfileToDuplicate(profile.name);
+                        setShowDuplicateDialog(true);
                       }}
-                      title="Delete"
+                      title="Duplicate"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Copy className="w-3 h-3" />
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onProfileDelete(profile.name);
+                    }}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                 </div>
               </div>
             ))}

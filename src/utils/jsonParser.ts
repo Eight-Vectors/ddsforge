@@ -1,26 +1,19 @@
 import type { FormField } from "../types/dds";
+import { isFieldModified } from "./fieldUtils";
 
 import { zenohSchema } from "../schemas/zenoh-schema";
 
-// Parse JSON5 content (JSON5 is a superset of JSON that allows comments, trailing commas, etc.)
 export function parseJSON5(content: string): any {
-  // First, try to parse as regular JSON
   try {
     return JSON.parse(content);
   } catch (e) {
-    // If that fails, we need to clean up JSON5 syntax to make it valid JSON
     let cleaned = content;
 
-    // Remove single-line comments
     cleaned = cleaned.replace(/\/\/.*$/gm, "");
-
-    // Remove multi-line comments
     cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, "");
 
-    // Remove trailing commas before } or ]
     cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
 
-    // Handle unquoted keys (basic implementation)
     cleaned = cleaned.replace(
       /([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,
       '$1"$2":'
@@ -36,7 +29,6 @@ export function parseJSON5(content: string): any {
   }
 }
 
-// Convert JSON object to FormFields
 export function jsonToFormFields(
   data: any,
   schema: any = {},
@@ -45,7 +37,6 @@ export function jsonToFormFields(
 ): FormField[] {
   const fields: FormField[] = [];
 
-  // Get all keys from both data and schema
   const allKeys = new Set([
     ...Object.keys(data || {}),
     ...Object.keys(schema || {}),
@@ -56,17 +47,14 @@ export function jsonToFormFields(
     const schemaValue = schema?.[key];
     const currentPath = [...path, key];
 
-    // Create a readable label
     const label = parentLabel
       ? `${parentLabel} > ${formatLabel(key)}`
       : formatLabel(key);
 
-    // Skip null values unless they're in the schema
     if (value === null && schemaValue === undefined) {
       return;
     }
 
-    // Determine the field type
     let fieldType: FormField["type"];
     let fieldValue = value !== undefined ? value : schemaValue;
 
@@ -97,7 +85,6 @@ export function jsonToFormFields(
       description: getFieldDescription(currentPath),
     };
 
-    // Handle nested objects
     if (fieldType === "object" && fieldValue !== null) {
       field.fields = jsonToFormFields(
         value || {},
@@ -107,12 +94,10 @@ export function jsonToFormFields(
       );
     }
 
-    // Handle arrays
     if (fieldType === "array") {
       field.value = fieldValue || [];
     }
 
-    // Add options for select fields
     if (isSelectField(currentPath)) {
       field.type = "select";
       field.options = getSelectOptions(currentPath);
@@ -124,47 +109,77 @@ export function jsonToFormFields(
   return fields;
 }
 
-// Convert FormFields back to JSON object
 export function formFieldsToJSON(
   fields: FormField[],
-  excludeDefaults: boolean = false
+  excludeDefaults: boolean = false,
+  originalUploadedData?: any,
+  originalFields?: FormField[]
 ): any {
   const result: any = {};
 
   fields.forEach((field) => {
     let value = field.value;
 
-    // Skip if excluding defaults and value matches default
-    if (
-      excludeDefaults &&
-      JSON.stringify(value) === JSON.stringify(field.defaultValue)
-    ) {
+    if (excludeDefaults) {
+      if (field.forceInclude) {
+      } else {
+        if (originalUploadedData) {
+          const wasInUploadedData = hasValueInUploadedData(field.path, originalUploadedData);
+          if (JSON.stringify(value) === JSON.stringify(field.defaultValue) && !wasInUploadedData) {
+            return;
+          }
+        } else if (originalFields) {
+          const isModified = isFieldModified(field, originalFields);
+          if (JSON.stringify(value) === JSON.stringify(field.defaultValue) && !isModified) {
+            return;
+          }
+        } else {
+          if (JSON.stringify(value) === JSON.stringify(field.defaultValue)) {
+            return;
+          }
+        }
+      }
+    }
+
+    if (field.name === 'id' && field.path.length === 1 && (!field.value || field.value === '') && !field.forceInclude) {
       return;
     }
 
-    // Handle nested objects
     if (field.type === "object" && field.fields) {
-      const nestedValue = formFieldsToJSON(field.fields, excludeDefaults);
-      if (Object.keys(nestedValue).length > 0 || !excludeDefaults) {
+      let childFields = field.fields;
+      if (field.forceInclude && excludeDefaults) {
+        childFields = field.fields.map(childField => ({
+          ...childField,
+          forceInclude: true
+        }));
+      }
+      
+      const nestedValue = formFieldsToJSON(childFields, excludeDefaults, originalUploadedData, originalFields);
+      if (Object.keys(nestedValue).length > 0 || !excludeDefaults || field.forceInclude) {
         value = nestedValue;
       } else {
-        return; // Skip empty objects when excluding defaults
+        return;
       }
     }
 
-    // Handle arrays
     if (field.type === "array" && Array.isArray(value)) {
-      if (value.length === 0 && excludeDefaults) {
-        return; // Skip empty arrays when excluding defaults
+      if (excludeDefaults && value.length === 0 && !field.forceInclude) {
+        if (originalUploadedData) {
+          const wasInUploadedData = hasValueInUploadedData(field.path, originalUploadedData);
+          if (!wasInUploadedData) return;
+        } else if (originalFields) {
+          const isModified = isFieldModified(field, originalFields);
+          if (!isModified) return;
+        } else {
+          return;
+        }
       }
     }
 
-    // Convert empty strings to null for optional fields
     if (value === "" && !field.required) {
       value = null;
     }
 
-    // Only add the field if it has a value or we're not excluding defaults
     if ((value !== null && value !== undefined) || !excludeDefaults) {
       result[field.name] = value;
     }
@@ -173,7 +188,6 @@ export function formFieldsToJSON(
   return result;
 }
 
-// Build JSON string from object
 export function buildJSON(data: any, pretty: boolean = true): string {
   if (pretty) {
     return JSON.stringify(data, null, 2);
@@ -181,7 +195,6 @@ export function buildJSON(data: any, pretty: boolean = true): string {
   return JSON.stringify(data);
 }
 
-// Format field name to readable label
 function formatLabel(name: string): string {
   return name
     .replace(/_/g, " ")
@@ -191,7 +204,6 @@ function formatLabel(name: string): string {
     .join(" ");
 }
 
-// Get default value based on type
 function getDefaultValue(type: FormField["type"]): any {
   switch (type) {
     case "boolean":
@@ -207,13 +219,11 @@ function getDefaultValue(type: FormField["type"]): any {
   }
 }
 
-// Check if a field should be a select field
 function isSelectField(path: string[]): boolean {
   const selectFields = [
     ["mode"], // root level mode field
     ["routing", "peer", "mode"],
     ["transport", "link", "protocols"],
-    // Add more select fields as needed
   ];
 
   return selectFields.some(
@@ -221,20 +231,17 @@ function isSelectField(path: string[]): boolean {
   );
 }
 
-// Get options for select fields
 function getSelectOptions(path: string[]): string[] {
   const pathStr = path.join(".");
 
   const optionsMap: { [key: string]: string[] } = {
     mode: ["router", "peer", "client"],
     "routing.peer.mode": ["peer_to_peer", "brokered", "linkstate_registries"],
-    // Add more options as needed
   };
 
   return optionsMap[pathStr] || [];
 }
 
-// Get field descriptions
 function getFieldDescription(path: string[]): string | undefined {
   const pathStr = path.join(".");
 
@@ -245,22 +252,23 @@ function getFieldDescription(path: string[]): string | undefined {
     "connect.endpoints": "List of endpoints to connect to",
     "connect.timeout_ms": "Connection timeout in milliseconds",
     "listen.endpoints": "List of endpoints to listen on",
+    "open": "Configure conditions to be met before session open returns",
+    "open.return_conditions": "Conditions that must be met before session open completes",
+    "open.return_conditions.connect_scouted": "Wait to connect to scouted peers and routers before returning",
+    "open.return_conditions.declares": "Wait to receive initial declares from connected peers before returning",
     "scouting.multicast.enabled":
       "Enable multicast scouting for peer discovery",
     "transport.unicast.max_sessions": "Maximum number of unicast sessions",
     "adminspace.permissions.read": "Allow read access to admin space",
     "adminspace.permissions.write": "Allow write access to admin space",
-    // Add more descriptions as needed
   };
 
   return descriptions[pathStr];
 }
 
-// Detect if content is Zenoh config
 export function isZenohConfig(content: string): boolean {
   try {
     const parsed = parseJSON5(content);
-    // Check for Zenoh-specific fields
     return (
       parsed.hasOwnProperty("mode") ||
       parsed.hasOwnProperty("scouting") ||
@@ -273,12 +281,10 @@ export function isZenohConfig(content: string): boolean {
   }
 }
 
-// Get schema for Zenoh
 export function getZenohSchema(): any {
   return zenohSchema;
 }
 
-// Merge uploaded data with schema defaults
 export function mergeWithSchema(uploadedData: any, schema: any): any {
   const merged = { ...schema };
 
@@ -301,4 +307,30 @@ export function mergeWithSchema(uploadedData: any, schema: any): any {
 
   deepMerge(merged, uploadedData);
   return merged;
+}
+
+function hasValueInUploadedData(path: string[], uploadedData: any): boolean {
+  if (!uploadedData || !Array.isArray(path) || path.length === 0) {
+    return false;
+  }
+  
+  let current = uploadedData;
+  for (const key of path) {
+    if (current && typeof current === 'object' && key in current) {
+      current = current[key];
+    } else {
+      return false;
+    }
+  }
+  
+  return current !== undefined;
+}
+
+export function generateZenohId(): string {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

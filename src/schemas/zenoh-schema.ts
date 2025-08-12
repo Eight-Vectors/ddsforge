@@ -1,37 +1,30 @@
 export const zenohSchema = {
-  // Identity configuration
-  id: null, // Optional unique identifier
-  mode: "peer", // router, peer, or client
+  id: null,
+  mode: "peer",
   metadata: {
     name: "",
-    location: ""
+    location: "",
   },
-
-  // Connection settings
   connect: {
     endpoints: [],
     timeout_ms: 10000,
     retry: {
       period_init_ms: 1000,
       period_max_ms: 4000,
-      period_increase_factor: 2
+      period_increase_factor: 2,
     },
-    exit_on_failure: false
+    exit_on_failure: false,
   },
-
-  // Listen settings
   listen: {
     endpoints: [],
     timeout_ms: 10000,
     retry: {
       period_init_ms: 1000,
       period_max_ms: 4000,
-      period_increase_factor: 2
+      period_increase_factor: 2,
     },
-    exit_on_failure: false
+    exit_on_failure: false,
   },
-
-  // Scouting and discovery
   scouting: {
     timeout: 1000,
     delay: 100,
@@ -43,8 +36,8 @@ export const zenohSchema = {
       autoconnect: {
         router: true,
         peer: true,
-        client: false
-      }
+        client: false,
+      },
     },
     gossip: {
       enabled: true,
@@ -52,31 +45,29 @@ export const zenohSchema = {
       autoconnect: {
         router: false,
         peer: true,
-        client: false
-      }
-    }
+        client: false,
+      },
+    },
   },
-
-  // Timestamping
+  open: {
+    return_conditions: {
+      connect_scouted: true,
+      declares: true,
+    },
+  },
   timestamping: {
     enabled_at: [],
-    drop_future_timestamp: false
+    drop_future_timestamp: false,
   },
-
-  // Query timeout
   queries_default_timeout: 10000,
-
-  // Routing configuration
   routing: {
     router: {
-      peers_failover_brokering: true
+      peers_failover_brokering: true,
     },
     peer: {
-      mode: "peer_to_peer"
-    }
+      mode: "peer_to_peer",
+    },
   },
-
-  // Transport settings
   transport: {
     unicast: {
       accept_timeout: 10000,
@@ -85,21 +76,21 @@ export const zenohSchema = {
       max_links: 1,
       lowlatency: false,
       qos: {
-        enabled: false
+        enabled: false,
       },
       compression: {
-        enabled: false
-      }
+        enabled: false,
+      },
     },
     multicast: {
       join_interval: 2500,
       max_sessions: 1000,
       qos: {
-        enabled: false
+        enabled: false,
       },
       compression: {
-        enabled: false
-      }
+        enabled: false,
+      },
     },
     link: {
       protocols: [],
@@ -117,28 +108,28 @@ export const zenohSchema = {
             data_high: 2,
             data: 4,
             data_low: 4,
-            background: 4
+            background: 4,
           },
           congestion_control: {
-            wait_before_drop: 1000
+            wait_before_drop: 1000,
           },
-          backoff: 100
+          backoff: 100,
         },
-        threads: 4
+        threads: 4,
       },
       rx: {
         buffer_size: 65536,
-        max_message_size: 1073741824
-      }
+        max_message_size: 1073741824,
+      },
     },
     shared_memory: {
-      enabled: false
+      enabled: false,
     },
     auth: {
       usrpwd: {
         user: null,
         password: null,
-        dictionary_file: null
+        dictionary_file: null,
       },
       pubkey: {
         public_key_pem: null,
@@ -146,40 +137,37 @@ export const zenohSchema = {
         public_key_file: null,
         private_key_file: null,
         key_size: 2048,
-        known_keys_file: null
-      }
-    }
+        known_keys_file: null,
+      },
+    },
   },
 
-  // Admin space
   adminspace: {
     permissions: {
       read: true,
-      write: false
-    }
+      write: false,
+    },
   },
 
-  // Plugins configuration (commented by default in actual config)
   plugins_loading: {
     enabled: false,
-    search_dirs: []
+    search_dirs: [],
   },
 
   plugins: {
     rest: {
       http_port: 8000,
-      enable: false
+      enable: false,
     },
     storages: {
-      enable: false
-    }
-  }
+      enable: false,
+    },
+  },
 };
 
-// Type definitions for better type safety
 export interface ZenohConfig {
   id?: string | null;
-  mode?: 'router' | 'peer' | 'client';
+  mode?: "router" | "peer" | "client";
   metadata?: {
     name?: string;
     location?: string;
@@ -229,6 +217,12 @@ export interface ZenohConfig {
       };
     };
   };
+  open?: {
+    return_conditions?: {
+      connect_scouted?: boolean;
+      declares?: boolean;
+    };
+  };
   timestamping?: {
     enabled_at?: string[];
     drop_future_timestamp?: boolean;
@@ -256,5 +250,5 @@ export interface ZenohConfig {
   plugins?: {
     [key: string]: any;
   };
-  [key: string]: any; // Allow additional properties
+  [key: string]: any;
 }

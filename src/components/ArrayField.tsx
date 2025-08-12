@@ -9,9 +9,18 @@ interface ArrayFieldProps {
   onChange: (path: string[], value: any) => void;
   originalFields?: FormFieldType[];
   disableModifiedCheck?: boolean;
+  excludeDefaults?: boolean;
+  onForceIncludeChange?: (path: string[], forceInclude: boolean) => void;
 }
 
-export const ArrayField: React.FC<ArrayFieldProps> = ({ field, onChange, originalFields = [], disableModifiedCheck = false }) => {
+export const ArrayField: React.FC<ArrayFieldProps> = ({ 
+  field, 
+  onChange, 
+  originalFields = [], 
+  disableModifiedCheck = false,
+  excludeDefaults = false,
+  onForceIncludeChange
+}) => {
   const addItem = () => {
     const newItem = field.fields && field.fields.length > 0 ? createEmptyObject(field.fields) : '';
     const newArray = [...(field.value || []), newItem];
@@ -127,6 +136,23 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({ field, onChange, origina
           </div>
         </div>
       ))}
+      
+      {/* Force Include checkbox for arrays */}
+      {excludeDefaults && onForceIncludeChange && (
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={field.forceInclude || false}
+              onChange={(e) => onForceIncludeChange(field.path, e.target.checked)}
+              className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <span className="text-gray-600">
+              Force include in minimal output
+            </span>
+          </label>
+        </div>
+      )}
     </div>
   );
 };

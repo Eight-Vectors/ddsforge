@@ -3,8 +3,11 @@ import type { FormField as FormFieldType } from '../types/dds';
 import { ArrayField } from './ArrayField';
 import { ObjectField } from './ObjectField';
 import { Input } from './ui/input';
+import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { generateZenohId } from '../utils/jsonParser';
+import { Shuffle } from 'lucide-react';
 
 interface FormFieldProps {
   field: FormFieldType;
@@ -14,6 +17,8 @@ interface FormFieldProps {
   originalFields?: FormFieldType[];
   validationError?: string;
   disableModifiedCheck?: boolean;
+  excludeDefaults?: boolean; // Whether we're in minimal output mode
+  onForceIncludeChange?: (path: string[], forceInclude: boolean) => void;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
@@ -24,14 +29,82 @@ export const FormField: React.FC<FormFieldProps> = ({
   originalFields = [],
   validationError,
   disableModifiedCheck = false,
+  excludeDefaults = false,
+  onForceIncludeChange,
 }) => {
   const handleChange = (value: any) => {
     onChange(field.path, value);
   };
 
+  const handleForceIncludeChange = (forceInclude: boolean) => {
+    if (onForceIncludeChange) {
+      onForceIncludeChange(field.path, forceInclude);
+    }
+  };
+
+  const shouldShowForceInclude = () => {
+    if (!excludeDefaults || !onForceIncludeChange) return false;
+    
+    if (field.type !== 'array' && field.type !== 'object') {
+      const valueMatchesDefault = JSON.stringify(field.value) === JSON.stringify(field.defaultValue);
+      
+      if (field.name === 'id' && field.path.length === 1 && (!field.value || field.value === '')) {
+        return false;
+      }
+      
+      return valueMatchesDefault;
+    }
+    
+    if (field.type === 'array') {
+      const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
+      const defaultIsEmpty = !field.defaultValue || (Array.isArray(field.defaultValue) && field.defaultValue.length === 0);
+      return isEmpty && defaultIsEmpty;
+    }
+    
+    if (field.type === 'object' && field.fields) {
+      const allChildrenMatchDefaults = field.fields.every(childField => {
+        if (childField.type === 'array') {
+          const isEmpty = !childField.value || (Array.isArray(childField.value) && childField.value.length === 0);
+          const defaultIsEmpty = !childField.defaultValue || (Array.isArray(childField.defaultValue) && childField.defaultValue.length === 0);
+          return isEmpty && defaultIsEmpty;
+        } else if (childField.type === 'object') {
+          return false;
+        } else {
+          return JSON.stringify(childField.value) === JSON.stringify(childField.defaultValue);
+        }
+      });
+      return allChildrenMatchDefaults;
+    }
+    
+    return false;
+  };
+
   const renderField = () => {
     switch (field.type) {
       case 'text':
+        if (field.name === 'id' && field.path.length === 1) {
+          return (
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={field.value || ''}
+                onChange={(e) => handleChange(e.target.value)}
+                placeholder="Enter ID or generate one..."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleChange(generateZenohId())}
+                className="flex items-center gap-1 whitespace-nowrap"
+              >
+                <Shuffle className="w-4 h-4" />
+                Generate
+              </Button>
+            </div>
+          );
+        }
+        
         return (
           <Input
             type="text"
@@ -87,6 +160,8 @@ export const FormField: React.FC<FormFieldProps> = ({
             onChange={onChange}
             originalFields={originalFields}
             disableModifiedCheck={disableModifiedCheck}
+            excludeDefaults={excludeDefaults}
+            onForceIncludeChange={onForceIncludeChange}
           />
         );
 
@@ -98,6 +173,8 @@ export const FormField: React.FC<FormFieldProps> = ({
             originalFields={originalFields}
             isModified={isModified}
             disableModifiedCheck={disableModifiedCheck}
+            excludeDefaults={excludeDefaults}
+            onForceIncludeChange={onForceIncludeChange}
           />
         );
 
@@ -106,12 +183,10 @@ export const FormField: React.FC<FormFieldProps> = ({
     }
   };
 
-  // For array and object fields, they render their own cards
   if (field.type === 'array' || field.type === 'object') {
     return renderField();
   }
 
-  // If inline (inside an object), don't wrap in card
   if (isInline) {
     return (
       <div>
@@ -123,7 +198,6 @@ export const FormField: React.FC<FormFieldProps> = ({
     );
   }
 
-  // For simple fields at top level, wrap in a card
   return (
     <Card className={!disableModifiedCheck && isModified ? "border-blue-500 shadow-md shadow-blue-100" : ""}>
       <CardHeader className="pb-3">
@@ -141,6 +215,21 @@ export const FormField: React.FC<FormFieldProps> = ({
       </CardHeader>
       <CardContent>
         {renderField()}
+        {shouldShowForceInclude() && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={field.forceInclude || false}
+                onChange={(e) => handleForceIncludeChange(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+              />
+              <span className="text-gray-600">
+                Force include in minimal output
+              </span>
+            </label>
+          </div>
+        )}
         {validationError && (
           <p className="text-sm text-red-600 mt-2">{validationError}</p>
         )}

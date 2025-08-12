@@ -1,104 +1,137 @@
-// FastDDS Complete Schema Definition
 export const fastDDSSchema = {
   dds: {
-    "@_xmlns": "http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles",
+    "@_xmlns": "http://www.eprosima.com",
     profiles: {
-      "@_xmlns": "http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles",
-      participant: [
+      // Transport descriptors section
+      transport_descriptors: [
         {
-          "@_profile_name": "default_participant",
-          "@_is_default_profile": true,
-          rtps: {
-            name: "default_participant",
-            defaultUnicastLocatorList: {
-              locator: [],
-            },
-            defaultMulticastLocatorList: {
-              locator: [],
-            },
-            sendSocketBufferSize: 0,
-            listenSocketBufferSize: 0,
-            participantID: -1,
-            useBuiltinTransports: true,
-            properties: {
-              property: [],
-            },
-            userData: {
-              value: [],
-            },
-            prefix: "",
-          },
-          domainId: 0,
-          allocation: {
-            remote_locators: {
-              max_unicast_locators: 4,
-              max_multicast_locators: 1,
-            },
-            participants: {
-              initial: 0,
-              maximum: 0,
-              increment: 1,
-            },
-            readers: {
-              initial: 0,
-              maximum: 0,
-              increment: 1,
-            },
-            writers: {
-              initial: 0,
-              maximum: 0,
-              increment: 1,
-            },
-            send_buffers: {
-              preallocated_number: 0,
-              dynamic: false,
-            },
-            data_limits: {
-              max_properties: 0,
-              max_user_data: 0,
-              max_partitions: 0,
-            },
-          },
-          builtin: {
-            discovery_config: {
-              discoveryProtocol: "SIMPLE",
-              ignoreParticipantFlags: "FILTER_DIFFERENT_HOST",
-              EDP: "SIMPLE",
-              domainId: 0,
-              leaseDuration: {
-                sec: "DURATION_INFINITY",
-              },
-              leaseAnnouncement: {
-                sec: "DURATION_INFINITY",
-              },
-              initialPeersList: {
-                locator: [],
-              },
-              metatrafficUnicastLocatorList: {
-                locator: [],
-              },
-              metatrafficMulticastLocatorList: {
-                locator: [],
-              },
-              clientAnnouncementPeriod: {
-                sec: 0,
-                nanosec: 0,
-              },
-              use_SIMPLE_RTPSParticipantDiscoveryProtocol: true,
-              use_SIMPLE_EndpointDiscoveryProtocol: true,
-              use_STATIC_EndpointDiscoveryProtocol: false,
-              discoveryServersList: {
-                RemoteServer: [],
-              },
-            },
-            mutation_tries: 100,
+          transport_descriptor: {
+            transport_id: "default_transport",
+            type: "UDPv4",
+            sendBufferSize: 65536,
+            receiveBufferSize: 65536,
+            maxMessageSize: 65500,
+            maxInitialPeersRange: 4,
+            interfaceWhiteList: [],
+            netmask_filter: "AUTO",
+            non_blocking_send: false,
+            output_port: 0,
+            TTL: 1,
           },
         },
       ],
+
+      // Domain Participant Factory
+      domainparticipant_factory: {
+        "@_profile_name": "default_domainparticipant_factory",
+        qos: {
+          entity_factory: {
+            autoenable_created_entities: true,
+          },
+        },
+      },
+
+      // Participant profiles
+      participant: [
+        {
+          "@_profile_name": "default_participant",
+          domainId: 0,
+          rtps: {
+            name: "default_participant",
+            defaultUnicastLocatorList: [],
+            defaultMulticastLocatorList: [],
+            sendSocketBufferSize: 0,
+            listenSocketBufferSize: 0,
+            builtin: {
+              discovery_config: {
+                discoveryProtocol: "SIMPLE",
+                EDP: "SIMPLE",
+                simpleEDP: {
+                  PUBWRITER_SUBREADER: true,
+                  PUBREADER_SUBWRITER: true,
+                },
+                leaseDuration: {
+                  sec: "DURATION_INFINITY",
+                },
+                leaseAnnouncement: {
+                  sec: "DURATION_INFINITY",
+                },
+              },
+              avoid_builtin_multicast: false,
+              use_WriterLivelinessProtocol: true,
+              metatrafficUnicastLocatorList: [],
+              metatrafficMulticastLocatorList: [],
+              initialPeersList: [],
+              readerHistoryMemoryPolicy: "PREALLOCATED",
+              writerHistoryMemoryPolicy: "PREALLOCATED",
+              readerPayloadSize: 512,
+              writerPayloadSize: 512,
+              mutation_tries: 100,
+            },
+            port: {
+              portBase: 7400,
+              domainIDGain: 250,
+              participantIDGain: 2,
+              offsetd0: 0,
+              offsetd1: 10,
+              offsetd2: 1,
+              offsetd3: 11,
+            },
+            participantID: -1,
+            userTransports: [],
+            useBuiltinTransports: true,
+            propertiesPolicy: {
+              properties: [],
+            },
+            allocation: {
+              remote_locators: {
+                max_unicast_locators: 4,
+                max_multicast_locators: 1,
+              },
+              total_participants: {
+                initial: 0,
+                maximum: 0,
+                increment: 1,
+              },
+              total_readers: {
+                initial: 0,
+                maximum: 0,
+                increment: 1,
+              },
+              total_writers: {
+                initial: 0,
+                maximum: 0,
+                increment: 1,
+              },
+              max_partitions: 256,
+              max_user_data: 256,
+              max_properties: 512,
+              send_buffers: {
+                preallocated_number: 0,
+                dynamic: true,
+              },
+            },
+          },
+        },
+      ],
+
+      // Data Writer profiles
       data_writer: [
         {
           "@_profile_name": "default_datawriter",
-          "@_is_default_profile": true,
+          topic: {
+            historyQos: {
+              kind: "KEEP_LAST",
+              depth: 1000,
+            },
+            resourceLimitsQos: {
+              max_samples: 5000,
+              max_instances: 10,
+              max_samples_per_instance: 400,
+              allocated_samples: 100,
+              extra_samples: 1,
+            },
+          },
           qos: {
             durability: {
               kind: "VOLATILE",
@@ -123,7 +156,10 @@ export const fastDDSSchema = {
             },
             liveliness: {
               kind: "AUTOMATIC",
-              leaseDuration: {
+              lease_duration: {
+                sec: "DURATION_INFINITY",
+              },
+              announcement_period: {
                 sec: "DURATION_INFINITY",
               },
             },
@@ -148,49 +184,56 @@ export const fastDDSSchema = {
             publishMode: {
               kind: "SYNCHRONOUS",
             },
-            dataRepresentation: {
-              value: [],
+            partition: {
+              names: [],
             },
           },
           times: {
-            heartbeatPeriod: {
+            initial_heartbeat_delay: {
               sec: 0,
-              nanosec: 100000000,
+              nanosec: 12000000,
             },
-            nackResponseDelay: {
+            heartbeat_period: {
+              sec: 3,
+              nanosec: 0,
+            },
+            nack_response_delay: {
               sec: 0,
               nanosec: 5000000,
             },
-            nackSupressionDuration: {
+            nack_supression_duration: {
               sec: 0,
               nanosec: 0,
             },
           },
-          unicastLocatorList: {
-            locator: [],
-          },
-          multicastLocatorList: {
-            locator: [],
-          },
-          external_unicast_locators: {
-            locator: [],
-          },
-          ignore_non_matching_locators: false,
+          unicastLocatorList: [],
+          multicastLocatorList: [],
           historyMemoryPolicy: "PREALLOCATED",
           propertiesPolicy: {
-            property: [],
+            properties: [],
           },
-          allocation: {
-            initial: 0,
-            maximum: 0,
-            increment: 1,
-          },
+          userDefinedID: -1,
+          entityID: -1,
         },
       ],
+
+      // Data Reader profiles
       data_reader: [
         {
           "@_profile_name": "default_datareader",
-          "@_is_default_profile": true,
+          topic: {
+            historyQos: {
+              kind: "KEEP_LAST",
+              depth: 1000,
+            },
+            resourceLimitsQos: {
+              max_samples: 5000,
+              max_instances: 10,
+              max_samples_per_instance: 400,
+              allocated_samples: 100,
+              extra_samples: 1,
+            },
+          },
           qos: {
             durability: {
               kind: "VOLATILE",
@@ -208,78 +251,95 @@ export const fastDDSSchema = {
             },
             liveliness: {
               kind: "AUTOMATIC",
-              leaseDuration: {
+              lease_duration: {
+                sec: "DURATION_INFINITY",
+              },
+              announcement_period: {
                 sec: "DURATION_INFINITY",
               },
             },
             reliability: {
-              kind: "BEST_EFFORT",
+              kind: "RELIABLE",
+              max_blocking_time: {
+                sec: 0,
+                nanosec: 100000000,
+              },
+            },
+            lifespan: {
+              duration: {
+                sec: "DURATION_INFINITY",
+              },
             },
             ownership: {
               kind: "SHARED",
             },
-            timeBasedFilter: {
-              minimum_separation: {
-                sec: 0,
-                nanosec: 0,
-              },
-            },
-            dataRepresentation: {
-              value: [],
+            partition: {
+              names: [],
             },
           },
           times: {
-            heartbeatResponseDelay: {
+            initial_acknack_delay: {
+              sec: 0,
+              nanosec: 70000000,
+            },
+            heartbeat_response_delay: {
               sec: 0,
               nanosec: 5000000,
             },
           },
-          unicastLocatorList: {
-            locator: [],
-          },
-          multicastLocatorList: {
-            locator: [],
-          },
-          external_unicast_locators: {
-            locator: [],
-          },
-          ignore_non_matching_locators: false,
+          unicastLocatorList: [],
+          multicastLocatorList: [],
+          expects_inline_qos: false,
           historyMemoryPolicy: "PREALLOCATED",
           propertiesPolicy: {
-            property: [],
+            properties: [],
           },
-          allocation: {
-            initial: 0,
-            maximum: 0,
-            increment: 1,
-          },
+          userDefinedID: -1,
+          entityID: -1,
         },
       ],
+
+      // Topic profiles
       topic: [
         {
           "@_profile_name": "default_topic",
-          "@_is_default_profile": true,
           historyQos: {
             kind: "KEEP_LAST",
-            depth: 1,
+            depth: 1000,
           },
           resourceLimitsQos: {
             max_samples: 5000,
             max_instances: 10,
             max_samples_per_instance: 400,
             allocated_samples: 100,
+            extra_samples: 1,
           },
         },
       ],
     },
-    log: {
-      verbosity: "Info",
-      stdout_threshold: "Warning",
-      file_name: "",
-      use_timestamp: false,
-      use_thread_id: false,
-      use_colors: true,
+
+    // Library settings
+    library_settings: {
+      intraprocess_delivery: "INTRAPROCESS_FULL",
     },
+
+    // Log configuration
+    log: {
+      use_default: true,
+      consumer: [
+        {
+          class: "StdoutConsumer",
+        },
+      ],
+      thread_settings: {
+        scheduling_policy: -1,
+        priority: 0,
+        affinity: 0,
+        stack_size: -1,
+      },
+    },
+
+    // Types definition
     types: {
       type: [],
     },

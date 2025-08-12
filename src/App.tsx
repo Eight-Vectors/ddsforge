@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { DDSVendor, FormField } from "./types/dds";
 import { FileUpload } from "./components/FileUpload";
 import { FormField as FormFieldComponent } from "./components/FormField";
 import { FastDDSProfileEditor } from "./components/FastDDSProfileEditor";
+import { HelpPage } from "./components/HelpPage";
 import {
   detectVendor,
   formFieldsToXML,
@@ -22,7 +23,14 @@ import {
   getZenohSchema,
   mergeWithSchema,
 } from "./utils/jsonParser";
-import { Download, FileText, RotateCcw, Eye } from "lucide-react";
+import {
+  Download,
+  FileText,
+  RotateCcw,
+  Eye,
+  AlertTriangle,
+  HelpCircle,
+} from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 
@@ -33,7 +41,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadFilename, setDownloadFilename] = useState<string>("");
-  const [excludeDefaults, setExcludeDefaults] = useState<boolean>(true); // Default to minimal output
+  const [excludeDefaults, setExcludeDefaults] = useState<boolean>(true);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationStatus, setValidationStatus] = useState<
@@ -43,13 +51,24 @@ function App() {
     Record<string, string>
   >({});
   const [uploadedFastDDSData, setUploadedFastDDSData] = useState<any>(null);
+  const [originalFastDDSData, setOriginalFastDDSData] = useState<any>(null);
+  const [fastDDSCreatedFromScratch, setFastDDSCreatedFromScratch] =
+    useState<boolean>(false);
+  const [fastDDSResetCounter, setFastDDSResetCounter] = useState<number>(0);
+  const [uploadedCycloneDDSData, setUploadedCycloneDDSData] =
+    useState<any>(null);
+  const [uploadedZenohData, setUploadedZenohData] = useState<any>(null);
   const [generatedXML, setGeneratedXML] = useState<string>("");
+  const [showHelpPage, setShowHelpPage] = useState(false);
+
+  const handleXMLGenerate = useCallback((xml: string) => {
+    setGeneratedXML(xml);
+  }, []);
 
   const handleFileUpload = async (content: string, fileName?: string) => {
     setIsLoading(true);
     setError(null);
 
-    // Set the download filename to the uploaded filename (without extension)
     if (fileName) {
       const nameWithoutExt = fileName.replace(/\.(xml|json|json5)$/i, "");
       setDownloadFilename(nameWithoutExt);
@@ -64,18 +83,15 @@ function App() {
       setVendor(detectedVendor);
 
       if (detectedVendor === "zenoh") {
-        // Handle Zenoh JSON config
         const parsed = parseJSON5(content);
+        setUploadedZenohData(parsed);
         const schema = getZenohSchema();
         const mergedData = mergeWithSchema(parsed, schema);
         const formFields = jsonToFormFields(mergedData, schema);
         setFields(formFields);
         setOriginalFields(JSON.parse(JSON.stringify(formFields)));
       } else {
-        // Handle XML configs (FastDDS and CycloneDDS)
         const parsed = parseXMLInBrowser(content);
-
-        // Extract the root element based on vendor
         let uploadedData;
         if (detectedVendor === "cyclonedds") {
           uploadedData = parsed.CycloneDDS || parsed.cyclonedds;
@@ -84,10 +100,11 @@ function App() {
         }
 
         if (detectedVendor === "fastdds") {
-          // For FastDDS, store the uploaded data for the profile editor
           setUploadedFastDDSData(uploadedData);
+          setOriginalFastDDSData(JSON.parse(JSON.stringify(uploadedData)));
+          setFastDDSCreatedFromScratch(false);
         } else {
-          // For CycloneDDS, use the existing form-based approach
+          setUploadedCycloneDDSData(uploadedData);
           const schema = getSchemaForVendor(detectedVendor);
           const mergedData = mergeUploadedDataIntoSchema(
             uploadedData,
@@ -109,11 +126,9 @@ function App() {
     }
   };
 
-  // Function for creating new DDS files
   const handleVendorSelect = (selectedVendor: DDSVendor) => {
     setVendor(selectedVendor);
 
-    // Set default filename for new files
     let defaultName = "";
     switch (selectedVendor) {
       case "cyclonedds":
@@ -129,16 +144,15 @@ function App() {
     setDownloadFilename(defaultName);
 
     if (selectedVendor === "fastdds") {
-      // For FastDDS, just set the vendor, the profile editor will handle the rest
       setUploadedFastDDSData(null);
+      setOriginalFastDDSData(null);
+      setFastDDSCreatedFromScratch(true);
     } else if (selectedVendor === "zenoh") {
-      // For Zenoh, use JSON-based approach
       const schema = getZenohSchema();
       const formFields = jsonToFormFields(schema, schema);
       setFields(formFields);
       setOriginalFields(JSON.parse(JSON.stringify(formFields)));
     } else {
-      // For CycloneDDS, use the existing form-based approach
       const schema = getSchemaForVendor(selectedVendor);
       const schemaData = schema.CycloneDDS;
       const formFields = xmlToFormFields(schemaData);
@@ -155,14 +169,11 @@ function App() {
       newValue: any
     ): FormField[] => {
       return fields.map((field) => {
-        // Check if this is the target field
         if (JSON.stringify(field.path) === JSON.stringify(targetPath)) {
           return { ...field, value: newValue };
         }
 
-        // Check if we need to recurse into nested fields
         if (field.fields && targetPath.length > field.path.length) {
-          // Check if the target path starts with this field's path
           const pathMatches = field.path.every((p, i) => p === targetPath[i]);
           if (pathMatches) {
             return {
@@ -176,41 +187,84 @@ function App() {
       });
     };
 
-    // Create a new array to ensure React detects the change
     const updatedFields = updateField([...fields], path, value);
     setFields(updatedFields);
 
-    // Validate the field value
     if (vendor) {
-      const error = validateFieldValue(path, value, vendor);
-      const pathKey = path.join(".");
+      try {
+        const error = validateFieldValue(path, value, vendor);
+        const pathKey = path.join(".");
 
-      setFieldValidationErrors((prev) => {
-        const newErrors = { ...prev };
-        if (error) {
-          newErrors[pathKey] = error;
-        } else {
-          delete newErrors[pathKey];
-        }
-        return newErrors;
-      });
+        setFieldValidationErrors((prev) => {
+          const newErrors = { ...prev };
+          if (error) {
+            newErrors[pathKey] = error;
+          } else {
+            delete newErrors[pathKey];
+          }
+          return newErrors;
+        });
+      } catch (err) {
+        const pathKey = path.join(".");
+        setFieldValidationErrors((prev) => ({
+          ...prev,
+          [pathKey]: `Validation error: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`,
+        }));
+      }
     }
   };
-  console.log("Vendor:", vendor);
+
+  const handleForceIncludeChange = (path: string[], forceInclude: boolean) => {
+    const updateField = (
+      fields: FormField[],
+      targetPath: string[]
+    ): FormField[] => {
+      return fields.map((field) => {
+        if (JSON.stringify(field.path) === JSON.stringify(targetPath)) {
+          return { ...field, forceInclude };
+        }
+
+        if (field.fields && targetPath.length > field.path.length) {
+          const pathMatches = field.path.every((p, i) => p === targetPath[i]);
+          if (pathMatches) {
+            return {
+              ...field,
+              fields: updateField(field.fields, targetPath),
+            };
+          }
+        }
+
+        return field;
+      });
+    };
+
+    const updatedFields = updateField([...fields], path);
+    setFields(updatedFields);
+  };
 
   const generateXML = () => {
     if (!vendor) return "";
 
     if (vendor === "fastdds") {
-      // For FastDDS, use the generated XML from the profile editor
       return generatedXML;
     } else if (vendor === "zenoh") {
-      // For Zenoh, generate JSON from form fields
-      const jsonData = formFieldsToJSON(fields, excludeDefaults);
+      const jsonData = formFieldsToJSON(
+        fields,
+        excludeDefaults,
+        uploadedZenohData,
+        originalFields
+      );
       return buildJSON(jsonData, true);
     } else {
-      // For CycloneDDS, generate XML from form fields
-      const xmlData = formFieldsToXML(fields, excludeDefaults, vendor);
+      const xmlData = formFieldsToXML(
+        fields,
+        excludeDefaults,
+        vendor,
+        uploadedCycloneDDSData,
+        originalFields
+      );
       return buildXML(xmlData, vendor);
     }
   };
@@ -271,27 +325,45 @@ function App() {
     setFieldValidationErrors({});
     setValidationErrors([]);
     setUploadedFastDDSData(null);
+    setOriginalFastDDSData(null);
+    setFastDDSCreatedFromScratch(false);
+    setFastDDSResetCounter(0);
+    setUploadedCycloneDDSData(null);
+    setUploadedZenohData(null);
     setGeneratedXML("");
+  };
+
+  const handleShowHelp = () => {
+    setShowHelpPage(true);
+  };
+
+  const handleBackFromHelp = () => {
+    setShowHelpPage(false);
   };
 
   const resetToOriginal = () => {
     if (originalFields.length > 0) {
-      setFields(JSON.parse(JSON.stringify(originalFields))); // Deep clone to reset
+      setFields(JSON.parse(JSON.stringify(originalFields)));
     }
   };
 
-  // Render fields based on vendor type
-  const renderFieldsForVendor = (fieldsToRender: FormField[]) => {
-    console.log("renderFieldsForVendor called with:", fieldsToRender);
-    console.log("Current vendor:", vendor);
+  const resetFastDDSToOriginal = () => {
+    if (originalFastDDSData) {
+      setUploadedFastDDSData(JSON.parse(JSON.stringify(originalFastDDSData)));
+      setFastDDSResetCounter((prev) => prev + 1);
+    }
+  };
 
-    // Extract top-level sections for two-column layout
+  const resetFastDDSToDefaults = () => {
+    setUploadedFastDDSData(null);
+    setFastDDSResetCounter((prev) => prev + 1);
+  };
+
+  const renderFieldsForVendor = (fieldsToRender: FormField[]) => {
     let sectionsToRender: FormField[] = [];
     let domainHeaderField: FormField | null = null;
 
-    // For CycloneDDS: Look for Domain field which contains sections
     if (vendor === "cyclonedds") {
-      // Find the Domain field - it could be nested at any level
       const findDomainField = (fields: FormField[]): FormField | undefined => {
         for (const field of fields) {
           if (
@@ -301,7 +373,7 @@ function App() {
           ) {
             return field;
           }
-          // Recursively search in nested fields
+
           if (field.fields) {
             const found = findDomainField(field.fields);
             if (found) return found;
@@ -313,11 +385,9 @@ function App() {
       const domainField = findDomainField(fieldsToRender);
 
       if (domainField && domainField.fields) {
-        // Extract any non-object/array fields as header fields (like Id)
-        // Filter out duplicate ID fields (keep only attribute version @_id)
         const simpleFields = domainField.fields.filter((f) => {
           if (f.type === "object" || f.type === "array") return false;
-          // If we have both 'Id' and '@_id', keep only '@_id'
+
           if (
             f.name === "Id" &&
             domainField.fields?.some((field) => field.name === "@_id")
@@ -328,7 +398,6 @@ function App() {
         });
 
         if (simpleFields.length > 0) {
-          // Create a header section with simple fields
           domainHeaderField = {
             name: "DomainHeader",
             label: "Domain Configuration",
@@ -347,14 +416,12 @@ function App() {
           };
         }
 
-        // Get all object-type fields as sections (General, Discovery, etc.)
         const sections = domainField.fields.filter(
           (f) => f.type === "object" || f.type === "array"
         );
         sectionsToRender.push(...sections);
       }
     } else if (vendor === "fastdds") {
-      // Collect all fields/sections to display
       let allFieldsToDisplay: FormField[] = [];
 
       if (
@@ -362,21 +429,17 @@ function App() {
         fieldsToRender[0].type === "object" &&
         fieldsToRender[0].fields
       ) {
-        // Extract all base sections and their subsections
         const rootField = fieldsToRender[0];
         rootField.fields?.forEach((baseSection: FormField) => {
           if (baseSection.type === "object" && baseSection.fields) {
-            // Add all subsections from this base section
             baseSection.fields.forEach((subsection: FormField) => {
               allFieldsToDisplay.push(subsection);
             });
           } else {
-            // Add the base section itself
             allFieldsToDisplay.push(baseSection);
           }
         });
       } else {
-        // If fields are already flat, use them directly
         fieldsToRender.forEach((field: FormField) => {
           if (field.type === "object" && field.fields) {
             field.fields.forEach((subfield: FormField) => {
@@ -393,10 +456,8 @@ function App() {
       const leftFields = allFieldsToDisplay.slice(0, midpoint);
       const rightFields = allFieldsToDisplay.slice(midpoint);
 
-      // Render split-screen layout
       return (
         <div className="flex h-full">
-          {/* Left Section - 50% */}
           <div className="w-1/2 p-6 overflow-y-auto border-r border-gray-200">
             <div className="space-y-6">
               {leftFields.map((field) => (
@@ -407,12 +468,12 @@ function App() {
                   isModified={isFieldModified(field, originalFields)}
                   originalFields={originalFields}
                   validationError={fieldValidationErrors[field.path.join(".")]}
+                  excludeDefaults={excludeDefaults}
+                  onForceIncludeChange={handleForceIncludeChange}
                 />
               ))}
             </div>
           </div>
-
-          {/* Right Section - 50% */}
           <div className="w-1/2 p-6 overflow-y-auto">
             <div className="space-y-6">
               {rightFields.map((field) => (
@@ -423,6 +484,8 @@ function App() {
                   isModified={isFieldModified(field, originalFields)}
                   originalFields={originalFields}
                   validationError={fieldValidationErrors[field.path.join(".")]}
+                  excludeDefaults={excludeDefaults}
+                  onForceIncludeChange={handleForceIncludeChange}
                 />
               ))}
             </div>
@@ -431,7 +494,6 @@ function App() {
       );
     }
 
-    // If we have a domain header and sections, render with special layout (CycloneDDS)
     if (domainHeaderField && sectionsToRender.length > 0) {
       // Split sections into two halves
       const midpoint = Math.ceil(sectionsToRender.length / 2);
@@ -440,7 +502,7 @@ function App() {
 
       return (
         <div className="flex flex-col h-full">
-          {/* Domain Header - Compact */}
+          {/* Domain Header  */}
           <div className="px-6 pt-4 pb-2">
             <Card className="shadow-sm">
               <CardHeader className="py-3">
@@ -465,6 +527,8 @@ function App() {
                           validationError={
                             fieldValidationErrors[field.path.join(".")]
                           }
+                          excludeDefaults={excludeDefaults}
+                          onForceIncludeChange={handleForceIncludeChange}
                         />
                       </div>
                     </div>
@@ -489,6 +553,8 @@ function App() {
                     validationError={
                       fieldValidationErrors[field.path.join(".")]
                     }
+                    excludeDefaults={excludeDefaults}
+                    onForceIncludeChange={handleForceIncludeChange}
                   />
                 ))}
               </div>
@@ -507,6 +573,8 @@ function App() {
                     validationError={
                       fieldValidationErrors[field.path.join(".")]
                     }
+                    excludeDefaults={excludeDefaults}
+                    onForceIncludeChange={handleForceIncludeChange}
                   />
                 ))}
               </div>
@@ -566,22 +634,22 @@ function App() {
     return renderFieldsInColumns(fieldsToRender);
   };
 
-  // Render fields in columns for better space utilization
+  // Show form fields in columns
   const renderFieldsInColumns = (fieldsToRender: FormField[]) => {
-    // Calculate midpoint to split fields
     const totalFields = fieldsToRender.length;
     const midpoint = Math.ceil(totalFields / 2);
-
-    console.log("Rendering fields :", fieldsToRender);
 
     // Split fields into two columns
     const leftColumnFields = fieldsToRender.slice(0, midpoint);
     const rightColumnFields = fieldsToRender.slice(midpoint);
 
+    // Add extra padding for Zenoh forms
+    const containerClass = vendor === "zenoh" ? "p-6 space-y-6" : "space-y-6";
+
     // For mobile or very few fields, use single column
     if (totalFields <= 3) {
       return (
-        <div className="space-y-6">
+        <div className={containerClass}>
           {fieldsToRender.map((field) => (
             <FormFieldComponent
               key={field.name}
@@ -590,16 +658,22 @@ function App() {
               isModified={isFieldModified(field, originalFields)}
               originalFields={originalFields}
               validationError={fieldValidationErrors[field.path.join(".")]}
+              excludeDefaults={excludeDefaults}
+              onForceIncludeChange={handleForceIncludeChange}
             />
           ))}
         </div>
       );
     }
 
-    // For desktop, use two columns
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column */}
+      <div
+        className={
+          vendor === "zenoh"
+            ? "p-6 grid grid-cols-1 lg:grid-cols-2 gap-6"
+            : "grid grid-cols-1 lg:grid-cols-2 gap-6"
+        }
+      >
         <div className="space-y-6">
           {leftColumnFields.map((field) => (
             <FormFieldComponent
@@ -609,11 +683,12 @@ function App() {
               isModified={isFieldModified(field, originalFields)}
               originalFields={originalFields}
               validationError={fieldValidationErrors[field.path.join(".")]}
+              excludeDefaults={excludeDefaults}
+              onForceIncludeChange={handleForceIncludeChange}
             />
           ))}
         </div>
 
-        {/* Right Column */}
         <div className="space-y-6">
           {rightColumnFields.map((field) => (
             <FormFieldComponent
@@ -623,6 +698,8 @@ function App() {
               isModified={isFieldModified(field, originalFields)}
               originalFields={originalFields}
               validationError={fieldValidationErrors[field.path.join(".")]}
+              excludeDefaults={excludeDefaults}
+              onForceIncludeChange={handleForceIncludeChange}
             />
           ))}
         </div>
@@ -630,113 +707,129 @@ function App() {
     );
   };
 
+  if (showHelpPage) {
+    return <HelpPage onBack={handleBackFromHelp} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header - Always visible */}
-      <div className="px-6 py-4 border-b bg-white shadow-sm">
+      {/* Header  */}
+      <header className="px-6 py-4 border-b bg-white shadow-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6" />
-            <h1 className="text-2xl font-bold">
-              DDS & Zenoh Configuration Editor
-            </h1>
-          </div>
-          <p className="text-gray-600">
-            Edit DDS XML and Zenoh JSON config files
-          </p>
+          <button
+            onClick={reset}
+            className="hover:opacity-80 transition-opacity cursor-pointer overflow-hidden"
+            title="Start Over"
+          >
+            <img
+              src="/logo.png"
+              alt="DDS Forge Logo"
+              className="h-10 w-40 object-cover"
+            />
+          </button>
+          <Button
+            onClick={handleShowHelp}
+            variant="ghost"
+            size="icon"
+            className="hover:bg-gray-100"
+            title="Help"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </Button>
         </div>
-        {vendor && (
+        {/* {vendor && (
           <p className="text-sm text-gray-500 mt-2">
             Edit values below • Modified fields will be highlighted
           </p>
-        )}
-      </div>
+        )} */}
+      </header>
 
       {!vendor ? (
         <div className="flex-1 p-6 overflow-auto">
-          <div className="max-w-4xl mx-auto space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-center">
-                  Upload Configuration File
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-6 text-center">
-                  Upload an existing DDS XML or Zenoh JSON configuration file to
-                  edit
-                </p>
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+              <Card className="flex flex-col h-full">
+                <CardHeader>
+                  <CardTitle className="text-center">
+                    Create New Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col">
+                  <div className="space-y-4 flex-1 flex flex-col justify-center">
+                    <Button
+                      onClick={() => handleVendorSelect("fastdds")}
+                      variant="outline"
+                      className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                    >
+                      <FileText className="h-8 w-8 text-purple-600" />
+                      <div className="text-center">
+                        <h3 className="font-semibold text-lg">FastDDS</h3>
+                        <p className="text-sm text-gray-600">
+                          eProsima Fast DDS Configuration
+                        </p>
+                      </div>
+                    </Button>
 
-                {/* Create new DDS file buttons */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <Button
-                    onClick={() => handleVendorSelect("fastdds")}
-                    variant="outline"
-                    className="h-auto flex flex-col items-center gap-2 p-6"
-                  >
-                    <FileText className="h-8 w-8" />
-                    <div className="text-center">
-                      <h3 className="font-semibold">FastDDS</h3>
-                      <p className="text-sm text-gray-600">
-                        eProsima Fast DDS Configuration
-                      </p>
-                    </div>
-                  </Button>
+                    <Button
+                      onClick={() => handleVendorSelect("cyclonedds")}
+                      variant="outline"
+                      className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                    >
+                      <FileText className="h-8 w-8 text-blue-600" />
+                      <div className="text-center">
+                        <h3 className="font-semibold text-lg">CycloneDDS</h3>
+                        <p className="text-sm text-gray-600">
+                          Eclipse CycloneDDS Configuration
+                        </p>
+                      </div>
+                    </Button>
 
-                  <Button
-                    onClick={() => handleVendorSelect("cyclonedds")}
-                    variant="outline"
-                    className="h-auto flex flex-col items-center gap-2 p-6"
-                  >
-                    <FileText className="h-8 w-8" />
-                    <div className="text-center">
-                      <h3 className="font-semibold">CycloneDDS</h3>
-                      <p className="text-sm text-gray-600">
-                        Eclipse CycloneDDS Configuration
-                      </p>
-                    </div>
-                  </Button>
-
-                  <Button
-                    onClick={() => handleVendorSelect("zenoh")}
-                    variant="outline"
-                    className="h-auto flex flex-col items-center gap-2 p-6"
-                  >
-                    <FileText className="h-8 w-8" />
-                    <div className="text-center">
-                      <h3 className="font-semibold">Zenoh</h3>
-                      <p className="text-sm text-gray-600">
-                        Eclipse Zenoh Configuration
-                      </p>
-                    </div>
-                  </Button>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200"></div>
+                    {/* <Button
+                      onClick={() => handleVendorSelect("zenoh")}
+                      variant="outline"
+                      className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-green-50 hover:border-green-300 transition-colors"
+                    >
+                      <FileText className="h-8 w-8 text-green-600" />
+                      <div className="text-center">
+                        <h3 className="font-semibold text-lg">Zenoh</h3>
+                        <p className="text-sm text-gray-600">
+                          Eclipse Zenoh Configuration
+                        </p>
+                      </div>
+                    </Button> */}
                   </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-gray-50 text-gray-600">
-                      Or upload existing XML
-                    </span>
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <FileUpload onFileUpload={handleFileUpload} />
-
-                {error && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-red-600">{error}</p>
+              <Card className="flex flex-col h-full">
+                <CardHeader>
+                  <CardTitle className="text-center">
+                    Upload Existing Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col">
+                  <div className="flex-1 flex flex-col justify-center">
+                    <FileUpload onFileUpload={handleFileUpload} />
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {error && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-red-600 font-medium">Error</p>
+                          <p className="text-red-600 text-sm">{error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Action Buttons */}
           <div className="px-6 py-4 bg-white border-b flex gap-3 items-center flex-wrap">
             <div className="flex items-center gap-2">
               <input
@@ -780,24 +873,32 @@ function App() {
               <Download className="w-4 h-4" />
               Download {vendor === "zenoh" ? "Config" : "XML"}
             </Button>
-            <Button
-              variant="outline"
-              onClick={reset}
-              className="flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Start Over
-            </Button>
-            {originalFields.length > 0 && (
+
+            {originalFields.length > 0 && vendor !== "fastdds" && (
               <Button
                 variant="outline"
                 onClick={resetToOriginal}
                 className="flex items-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" />
-                Reset to Original
+                Reset
               </Button>
             )}
+            {vendor === "fastdds" &&
+              (originalFastDDSData || fastDDSCreatedFromScratch) && (
+                <Button
+                  variant="outline"
+                  onClick={
+                    originalFastDDSData
+                      ? resetFastDDSToOriginal
+                      : resetFastDDSToDefaults
+                  }
+                  className="flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </Button>
+              )}
           </div>
 
           <div className="flex-1 flex overflow-hidden">
@@ -808,10 +909,12 @@ function App() {
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent"></div>
                 </div>
               ) : vendor === "fastdds" ? (
-                // For FastDDS, use the profile editor
                 <FastDDSProfileEditor
+                  key={`fastdds-${
+                    uploadedFastDDSData ? "uploaded" : "scratch"
+                  }-${fastDDSResetCounter}`}
                   uploadedData={uploadedFastDDSData}
-                  onXMLGenerate={setGeneratedXML}
+                  onXMLGenerate={handleXMLGenerate}
                   excludeDefaults={excludeDefaults}
                 />
               ) : fields.length === 0 ? (
@@ -832,15 +935,12 @@ function App() {
         </div>
       )}
 
-      {/* Download Preview Dialog */}
       {showPreviewDialog && (
         <>
-          {/* Backdrop with blur */}
           <div
             className="fixed inset-0 z-40 backdrop-blur-sm bg-black/30"
             onClick={handleCancelFromPreview}
           />
-          {/* Dialog */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
               <div className="p-6 border-b">
@@ -864,7 +964,6 @@ function App() {
                   </Button>
                 </div>
 
-                {/* Show validation status */}
                 {validationStatus === "valid" && (
                   <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-green-600 font-semibold flex items-center gap-2">
@@ -924,28 +1023,34 @@ function App() {
         </>
       )}
 
-      {/* Footer */}
       <div className="w-full py-4 px-6 bg-white border-t">
-        <div className="text-center text-sm text-gray-600">
-          Powered by{" "}
-          <a
-            href="https://www.eightvectors.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-purple-600 hover:text-purple-700 hover:underline"
-          >
-            EightVectors
-          </a>{" "}
-          • © {new Date().getFullYear()}{" "}
-          <a
-            href="https://www.eightvectors.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-purple-600 hover:underline"
-          >
-            EightVectors
-          </a>
-          . All rights reserved.
+        <div className="text-center space-y-2">
+          <div className="flex justify-center">
+            <a
+              href="https://www.eightvectors.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+            >
+              <img
+                src="/eightvectors.avif"
+                alt="EightVectors"
+                className="h-8 w-auto"
+              />
+            </a>
+          </div>
+          <div className="text-sm text-gray-600">
+            © {new Date().getFullYear()}{" "}
+            <a
+              href="https://www.eightvectors.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-purple-600 hover:underline"
+            >
+              by EightVectors
+            </a>
+            . All rights reserved.
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ export interface FormField {
   fields?: FormField[];
   description?: string;
   path: string[];
+  forceInclude?: boolean; // Flag to force include this field even in minimal mode
 }
 
 export interface DDSConfig {

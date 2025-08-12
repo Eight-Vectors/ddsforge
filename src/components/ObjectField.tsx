@@ -12,9 +12,19 @@ interface ObjectFieldProps {
   originalFields?: FormFieldType[];
   isModified?: boolean;
   disableModifiedCheck?: boolean;
+  excludeDefaults?: boolean;
+  onForceIncludeChange?: (path: string[], forceInclude: boolean) => void;
 }
 
-export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, originalFields = [], isModified = false, disableModifiedCheck = false }) => {
+export const ObjectField: React.FC<ObjectFieldProps> = ({ 
+  field, 
+  onChange, 
+  originalFields = [], 
+  isModified = false, 
+  disableModifiedCheck = false,
+  excludeDefaults = false,
+  onForceIncludeChange
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Check if any child field is modified
@@ -54,6 +64,8 @@ export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, origi
                     isModified={disableModifiedCheck ? false : isFieldModified(subField, originalFields)}
                     originalFields={originalFields}
                     disableModifiedCheck={disableModifiedCheck}
+                    excludeDefaults={excludeDefaults}
+                    onForceIncludeChange={onForceIncludeChange}
                   />
                 );
               }
@@ -79,10 +91,29 @@ export const ObjectField: React.FC<ObjectFieldProps> = ({ field, onChange, origi
                     isInline={true}
                     isModified={fieldIsModified}
                     disableModifiedCheck={disableModifiedCheck}
+                    excludeDefaults={excludeDefaults}
+                    onForceIncludeChange={onForceIncludeChange}
                   />
                 </div>
               );
             })}
+            
+            {/* Force Include checkbox for objects */}
+            {excludeDefaults && onForceIncludeChange && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={field.forceInclude || false}
+                    onChange={(e) => onForceIncludeChange(field.path, e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                  />
+                  <span className="text-gray-600">
+                    Force include in minimal output
+                  </span>
+                </label>
+              </div>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

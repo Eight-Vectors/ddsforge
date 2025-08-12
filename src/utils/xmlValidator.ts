@@ -11,15 +11,10 @@ export const validateXML = (
   content: string,
   vendor: DDSVendor
 ): ValidationResult => {
-  // Handle Zenoh JSON validation
   if (vendor === "zenoh") {
     return validateZenohConfig(content);
   }
-  
-  // Handle XML validation for DDS vendors
   const errors: string[] = [];
-
-  // First, check if the XML is well-formed
   const validationResult = XMLValidator.validate(content, {
     allowBooleanAttributes: true,
     unpairedTags: [],
@@ -36,22 +31,15 @@ export const validateXML = (
     return { isValid: false, errors };
   }
 
-  // Additional vendor-specific validations
   if (vendor === "cyclonedds") {
-    // Check for required root element
-    if (
-      !content.includes("<CycloneDDS") &&
-      !content.includes("<cyclonedds")
-    ) {
+    if (!content.includes("<CycloneDDS") && !content.includes("<cyclonedds")) {
       errors.push("Missing required root element <CycloneDDS>");
     }
 
-    // Check for Domain element
     if (!content.includes("<Domain")) {
       errors.push("Missing required <Domain> element");
     }
 
-    // Validate domain ID format if present
     const domainIdMatch = content.match(/Id\s*=\s*["']([^"']+)["']/);
     if (domainIdMatch && domainIdMatch[1] !== "any") {
       const domainId = domainIdMatch[1];
@@ -64,21 +52,20 @@ export const validateXML = (
       }
     }
   } else if (vendor === "fastdds") {
-    // Check for required root element
     if (!content.includes("<dds") && !content.includes("<DDS")) {
       errors.push("Missing required root element <dds>");
     }
 
-    // Check for at least one of: profiles, log, or types element
     const hasProfiles = content.includes("<profiles");
     const hasLog = content.includes("<log");
     const hasTypes = content.includes("<types");
-    
+
     if (!hasProfiles && !hasLog && !hasTypes) {
-      errors.push("FastDDS XML must contain at least one of: profiles, log, or types elements");
+      errors.push(
+        "FastDDS XML must contain at least one of: profiles, log, or types elements"
+      );
     }
 
-    // Validate domain ID if present
     const domainIdMatch = content.match(/<domainId>(\d+)<\/domainId>/);
     if (domainIdMatch) {
       const domainId = parseInt(domainIdMatch[1]);
@@ -88,30 +75,41 @@ export const validateXML = (
     }
   }
 
-  // Check for common issues
-
-  // Check for empty elements that shouldn't be empty
   const emptyElementPattern = /<(\w+)(\s+[^>]*)?\s*\/>/g;
   const emptyElements = content.match(emptyElementPattern);
   if (emptyElements) {
     const problematicEmpty = emptyElements.filter((el) => {
       const tagName = el.match(/<(\w+)/)?.[1];
-      // Check if element has attributes - if it does, it's not truly empty
       const hasAttributes = /\s+\w+\s*=\s*["']/.test(el);
       if (hasAttributes) {
-        return false; // Elements with attributes are valid even if self-closing
+        return false;
       }
-      // These elements can be empty even without attributes
       const allowedEmpty = [
-        // CycloneDDS elements
-        "Enable", "Disable", "NetworkInterface", "Peer",
-        // FastDDS elements that can be empty
-        "dataRepresentation", "unicastLocatorList", "multicastLocatorList",
-        "external_unicast_locators", "propertiesPolicy", "userDefinedTransportDescriptors",
-        "remoteLocators", "historyMemoryPolicy", "properties", "allocation",
-        "userData", "topicData", "groupData", "partitions", "remoteServerAttributes",
-        "defaultUnicastLocatorList", "defaultMulticastLocatorList", "initialPeersList",
-        "metatrafficUnicastLocatorList", "metatrafficMulticastLocatorList", "discoveryServersList"
+        "Enable",
+        "Disable",
+        "NetworkInterface",
+        "Peer",
+        "dataRepresentation",
+        "unicastLocatorList",
+        "multicastLocatorList",
+        "external_unicast_locators",
+        "propertiesPolicy",
+        "userDefinedTransportDescriptors",
+        "remoteLocators",
+        "historyMemoryPolicy",
+        "properties",
+        "allocation",
+        "userData",
+        "topicData",
+        "groupData",
+        "partitions",
+        "remoteServerAttributes",
+        "defaultUnicastLocatorList",
+        "defaultMulticastLocatorList",
+        "initialPeersList",
+        "metatrafficUnicastLocatorList",
+        "metatrafficMulticastLocatorList",
+        "discoveryServersList",
       ];
       return tagName && !allowedEmpty.includes(tagName);
     });
@@ -125,11 +123,8 @@ export const validateXML = (
     }
   }
 
-  // Check for duplicate profile names in FastDDS
   if (vendor === "fastdds") {
-    const profileNames = content.match(
-      /profile_name\s*=\s*["']([^"']+)["']/g
-    );
+    const profileNames = content.match(/profile_name\s*=\s*["']([^"']+)["']/g);
     if (profileNames) {
       const names = profileNames
         .map((match) => match.match(/["']([^"']+)["']/)?.[1])
@@ -153,19 +148,15 @@ export const validateXML = (
   };
 };
 
-// Validate specific field values
 export const validateFieldValue = (
   fieldPath: string[],
   value: any,
   vendor: DDSVendor
 ): string | null => {
-  // Handle Zenoh field validation
   if (vendor === "zenoh") {
     return validateZenohFieldValue(fieldPath, value);
   }
   const path = fieldPath.join(".");
-
-  // Common validations
   if (path.includes("domainId") || path === "Domain.Id") {
     if (value !== "any" && value !== undefined && value !== "") {
       const domainId = parseInt(value);
@@ -175,7 +166,6 @@ export const validateFieldValue = (
     }
   }
 
-  // Port validations
   if (path.includes("port") || path.includes("Port")) {
     const port = parseInt(value);
     if (!isNaN(port) && (port < 1 || port > 65535)) {
@@ -183,7 +173,6 @@ export const validateFieldValue = (
     }
   }
 
-  // Memory size validations (e.g., MaxMessageSize)
   if (
     path.includes("Size") &&
     typeof value === "string" &&
@@ -194,7 +183,6 @@ export const validateFieldValue = (
       const size = parseInt(sizeMatch[1]);
       const unit = sizeMatch[2];
 
-      // Convert to bytes for validation
       let sizeInBytes = size;
       switch (unit) {
         case "K":
@@ -212,13 +200,11 @@ export const validateFieldValue = (
       }
 
       if (sizeInBytes > 1024 * 1024 * 1024 * 1024) {
-        // 1TB max
         return "Size value is too large (max 1TB)";
       }
     }
   }
 
-  // Duration validations
   if (
     path.includes("Duration") ||
     path.includes("sec") ||
@@ -230,7 +216,6 @@ export const validateFieldValue = (
     }
   }
 
-  // IP address validation
   if (
     path.includes("address") ||
     path.includes("Address") ||
