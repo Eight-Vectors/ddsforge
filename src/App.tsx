@@ -41,7 +41,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadFilename, setDownloadFilename] = useState<string>("");
-  const [excludeDefaults, setExcludeDefaults] = useState<boolean>(true);
+  // Always exclude defaults - this is now the default behavior
+  const excludeDefaults = true;
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationStatus, setValidationStatus] = useState<
@@ -163,6 +164,15 @@ function App() {
   };
 
   const handleFieldChange = (path: string[], value: any) => {
+    // Debug logging for Thread/Scheduling fields
+    if (path.includes("Scheduling") || path.includes("Thread")) {
+      console.log("App handleFieldChange:", {
+        path: path,
+        value: value,
+        pathString: path.join(" > "),
+      });
+    }
+
     const updateField = (
       fields: FormField[],
       targetPath: string[],
@@ -171,6 +181,126 @@ function App() {
       return fields.map((field) => {
         if (JSON.stringify(field.path) === JSON.stringify(targetPath)) {
           return { ...field, value: newValue };
+        }
+
+        // Special handling for Thread array inside Threads object
+        if (
+          field.name === "Thread" &&
+          field.path.length > 1 &&
+          field.path[field.path.length - 2] === "Threads"
+        ) {
+          const pathMatches = field.path.every((p, i) => p === targetPath[i]);
+          if (pathMatches && targetPath.length > field.path.length) {
+            // The path is like ["Domain", "Threads", "Thread", "0", "Scheduling", "Class"]
+            // We're updating the Thread array directly
+            const arrayIndex = parseInt(targetPath[field.path.length]);
+            if (!isNaN(arrayIndex) && field.value && field.value[arrayIndex]) {
+              const itemPath = targetPath.slice(field.path.length + 1); // Skip index
+
+              console.log("Special Thread array handler:", {
+                fieldPath: field.path,
+                targetPath: targetPath,
+                arrayIndex: arrayIndex,
+                itemPath: itemPath,
+                currentThreadItem: field.value[arrayIndex],
+                newValue: newValue,
+              });
+
+              if (itemPath.length === 0) {
+                // Direct update to Thread item
+                const newArray = [...field.value];
+                newArray[arrayIndex] = newValue;
+                return { ...field, value: newArray };
+              } else {
+                // Update nested field within Thread item
+                const newArray = [...field.value];
+                newArray[arrayIndex] = JSON.parse(
+                  JSON.stringify(newArray[arrayIndex])
+                ); // Deep clone the item
+
+                let current = newArray[arrayIndex];
+
+                // Navigate to the nested field
+                for (let i = 0; i < itemPath.length - 1; i++) {
+                  if (!current[itemPath[i]]) {
+                    current[itemPath[i]] = {};
+                  }
+                  current = current[itemPath[i]];
+                }
+
+                // Set the value
+                current[itemPath[itemPath.length - 1]] = newValue;
+
+                console.log("Updated Thread array with special handler:", {
+                  newThreadItem: newArray[arrayIndex],
+                  specificField: itemPath.join("."),
+                  newValue: newValue,
+                });
+
+                return { ...field, value: newArray };
+              }
+            }
+          }
+          // If we don't match the special case, fall through to regular array handling
+        }
+
+        // Handle array fields with indexed paths
+        if (
+          field.type === "array" &&
+          field.value &&
+          Array.isArray(field.value)
+        ) {
+          const pathMatches = field.path.every((p, i) => p === targetPath[i]);
+          if (pathMatches && targetPath.length > field.path.length) {
+            const arrayIndex = parseInt(targetPath[field.path.length]);
+            if (!isNaN(arrayIndex) && arrayIndex < field.value.length) {
+              // Debug logging for Threads
+              if (field.path.includes("Thread")) {
+                console.log("Updating array field:", {
+                  fieldPath: field.path,
+                  targetPath: targetPath,
+                  arrayIndex: arrayIndex,
+                  itemPath: targetPath.slice(field.path.length + 1),
+                  currentValue: field.value[arrayIndex],
+                  newValue: newValue,
+                });
+              }
+
+              // This is updating a field within an array item
+              const itemPath = targetPath.slice(field.path.length + 1);
+              if (itemPath.length === 0) {
+                // Direct update to array item
+                const newArray = [...field.value];
+                newArray[arrayIndex] = newValue;
+                return { ...field, value: newArray };
+              } else {
+                // Update nested field within array item
+                const newArray = [...field.value];
+                let current = newArray[arrayIndex];
+
+                // Navigate to the nested field
+                for (let i = 0; i < itemPath.length - 1; i++) {
+                  if (!current[itemPath[i]]) {
+                    current[itemPath[i]] = {};
+                  }
+                  current = current[itemPath[i]];
+                }
+
+                // Set the value
+                current[itemPath[itemPath.length - 1]] = newValue;
+
+                if (field.path.includes("Thread")) {
+                  console.log("Updated array:", {
+                    newItem: newArray[arrayIndex],
+                    specificField: itemPath.join("."),
+                    newValue: newValue,
+                  });
+                }
+
+                return { ...field, value: newArray };
+              }
+            }
+          }
         }
 
         if (field.fields && targetPath.length > field.path.length) {
@@ -188,7 +318,20 @@ function App() {
     };
 
     const updatedFields = updateField([...fields], path, value);
-    setFields(updatedFields);
+
+    // Force React to recognize the change by creating a new array
+    // This is crucial for nested updates in arrays
+    const forceUpdate = JSON.parse(JSON.stringify(updatedFields));
+    setFields(forceUpdate);
+
+    // Debug log to verify the update
+    if (path.includes("Scheduling") || path.includes("Thread")) {
+      console.log("Setting fields with new value:", {
+        path: path,
+        value: value,
+        updatedFields: forceUpdate,
+      });
+    }
 
     if (vendor) {
       try {
@@ -258,6 +401,22 @@ function App() {
       );
       return buildJSON(jsonData, true);
     } else {
+      // Debug log to check Thread fields before XML generation
+      const domainField = fields.find((f) => f.name === "Domain");
+      const threadField = domainField?.fields?.find(
+        (f) => f.name === "Threads"
+      );
+      if (threadField) {
+        console.log("Thread field before XML generation:", {
+          threadsField: threadField,
+          threadValue: threadField.value,
+          threadArrayField: threadField.fields?.find(
+            (f) => f.name === "Thread"
+          ),
+          domainValue: domainField?.value,
+        });
+      }
+
       const xmlData = formFieldsToXML(
         fields,
         excludeDefaults,
@@ -714,7 +873,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header  */}
-      <header className="px-6 py-4 border-b bg-white shadow-sm">
+      <header className="px-6 py-4 border-b bg-white sticky top-0 z-20">
         <div className="flex items-center justify-between">
           <button
             onClick={reset}
@@ -829,8 +988,8 @@ function App() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-6 py-4 bg-white border-b flex gap-3 items-center flex-wrap">
+        <div className="flex-1 flex flex-col">
+          <div className="px-6 py-4 bg-white border-b flex gap-3 items-center flex-wrap sticky top-[72px] z-10 shadow-sm">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -844,19 +1003,7 @@ function App() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={excludeDefaults}
-                  onChange={(e) => setExcludeDefaults(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <span className="text-sm text-gray-700">
-                  Minimal output (non-defaults only)
-                </span>
-              </label>
-            </div>
+            {/* Minimal output is now the default behavior */}
 
             <Button
               onClick={handlePreviewClick}
@@ -901,9 +1048,9 @@ function App() {
               )}
           </div>
 
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-auto">
             {/* Configuration Form - Scrollable */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1">
               {isLoading ? (
                 <div className="flex justify-center py-16">
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent"></div>
@@ -915,7 +1062,6 @@ function App() {
                   }-${fastDDSResetCounter}`}
                   uploadedData={uploadedFastDDSData}
                   onXMLGenerate={handleXMLGenerate}
-                  excludeDefaults={excludeDefaults}
                 />
               ) : fields.length === 0 ? (
                 <div className="p-6">

@@ -37,6 +37,13 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
     newArray[index] = value;
     onChange(field.path, newArray);
   };
+  
+  const updateItemField = (index: number, fieldPath: string[], value: any) => {
+    // This function updates a specific field within an array item
+    // It passes the full path up to the parent instead of just updating the array
+    const fullPath = [...field.path, index.toString(), ...fieldPath];
+    onChange(fullPath, value);
+  };
 
   const createEmptyObject = (fields: FormFieldType[]): any => {
     const obj: any = {};
@@ -100,22 +107,78 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
               <div className="space-y-4">
                 {field.fields.map((subField) => {
                   const itemPath = [...field.path, index.toString(), subField.name];
-                  const itemValue = item[subField.name];
                   
-                  const currentField = {
-                    ...subField,
-                    value: itemValue !== undefined ? itemValue : subField.defaultValue,
-                    path: itemPath,
-                  };
+                  // For nested objects, we need to get the value from the nested path
+                  let itemValue = item[subField.name];
+                  
+                  // Debug logging for Thread fields
+                  if (subField.name === "Scheduling" && field.name === "Thread") {
+                    console.log("Creating Scheduling field:", {
+                      item: item,
+                      subFieldName: subField.name,
+                      itemValue: itemValue,
+                      fieldValue: field.value,
+                      arrayIndex: index
+                    });
+                  }
+                  
+                  // For object fields, we need to ensure the nested fields also get the correct values
+                  let currentField;
+                  if (subField.type === 'object' && subField.fields) {
+                    // Recursively update nested fields with current values
+                    const nestedFields = subField.fields.map(nestedField => {
+                      const nestedValue = itemValue?.[nestedField.name];
+                      return {
+                        ...nestedField,
+                        value: nestedValue !== undefined ? nestedValue : nestedField.defaultValue,
+                        path: [...itemPath, nestedField.name]
+                      };
+                    });
+                    
+                    currentField = {
+                      ...subField,
+                      value: itemValue !== undefined ? itemValue : subField.defaultValue,
+                      path: itemPath,
+                      fields: nestedFields
+                    };
+                  } else {
+                    currentField = {
+                      ...subField,
+                      value: itemValue !== undefined ? itemValue : subField.defaultValue,
+                      path: itemPath,
+                    };
+                  }
                   
                   return (
                     <FormField
-                      key={subField.name}
+                      key={`${subField.name}-${index}`}
                       field={currentField}
-                      onChange={(_path, value) => {
-                        const newItem = { ...item };
-                        newItem[subField.name] = value;
-                        updateItem(index, newItem);
+                      onChange={(path, value) => {
+                        // Debug logging for Thread/Scheduling fields
+                        if (path.includes("Scheduling") || path.includes("Thread")) {
+                          console.log("ArrayField onChange - using updateItemField:", {
+                            fullPath: path,
+                            value: value,
+                            index: index,
+                            currentItem: item,
+                            fieldName: subField.name
+                          });
+                        }
+                        
+                        // Calculate the relative path from the array item
+                        // For example, if path is ["Domain", "Threads", "Thread", "0", "Scheduling", "Class"]
+                        // and the array field path is ["Domain", "Threads", "Thread"]
+                        // then the relative path from the item is ["Scheduling", "Class"]
+                        const itemStartIndex = field.path.length + 1; // +1 to skip the index
+                        const relativePath = path.slice(itemStartIndex);
+                        
+                        if (relativePath.length > 0) {
+                          // Use the new updateItemField function that preserves the full path
+                          updateItemField(index, relativePath, value);
+                        } else {
+                          // This is a direct update to the item itself (shouldn't happen with objects)
+                          updateItem(index, value);
+                        }
                       }}
                       originalFields={originalFields}
                       isModified={disableModifiedCheck ? false : isFieldModified(currentField, originalFields)}

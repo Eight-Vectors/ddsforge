@@ -1,5 +1,6 @@
 import type { FormField } from "../types/dds";
 import { fastDDSSchema } from "../schemas/fastdds-schema";
+import { transportSettings } from "../schemas/fastdds-settings";
 
 export interface ProfileData {
   profileName: string;
@@ -147,20 +148,67 @@ export const getDefaultProfileData = (profileType: string): any => {
   const schema = fastDDSSchema.dds.profiles;
 
   switch (profileType) {
+    case "domainparticipant_factory":
+      return schema.domainparticipant_factory || null;
     case "participant":
       return schema.participant?.[0] || null;
     case "data_writer":
-      return schema.data_writer?.[0] || null;
+      // Data writer profiles are not supported in this version
+      return null;
     case "data_reader":
-      return schema.data_reader?.[0] || null;
+      // Data reader profiles are not supported in this version
+      return null;
     case "topic":
       return schema.topic?.[0] || null;
     case "transport_descriptor":
+      // Return the full transport descriptor structure from settings
       return {
-        transport_id: "new_transport",
+        transport_id: "default_transport",
         type: "UDPv4",
-        sendBufferSize: 65536,
-        receiveBufferSize: 65536,
+        sendBufferSize:
+          transportSettings.transportDescriptor.default.sendBufferSize,
+        receiveBufferSize:
+          transportSettings.transportDescriptor.default.receiveBufferSize,
+        maxMessageSize:
+          transportSettings.transportDescriptor.default.maxMessageSize,
+        maxInitialPeersRange:
+          transportSettings.transportDescriptor.default.maxInitialPeersRange,
+        netmask_filter:
+          transportSettings.transportDescriptor.default.netmask_filter,
+        interfaces: transportSettings.transportDescriptor.default.interfaces,
+        interfaceWhiteList: [],
+        TTL: transportSettings.transportDescriptor.default.TTL,
+        non_blocking_send:
+          transportSettings.transportDescriptor.default.non_blocking_send,
+        output_port: transportSettings.transportDescriptor.default.output_port,
+        wan_addr: transportSettings.transportDescriptor.default.wan_addr,
+        keep_alive_frequency_ms:
+          transportSettings.transportDescriptor.default.keep_alive_frequency_ms,
+        keep_alive_timeout_ms:
+          transportSettings.transportDescriptor.default.keep_alive_timeout_ms,
+        max_logical_port:
+          transportSettings.transportDescriptor.default.max_logical_port,
+        logical_port_range:
+          transportSettings.transportDescriptor.default.logical_port_range,
+        logical_port_increment:
+          transportSettings.transportDescriptor.default.logical_port_increment,
+        listening_ports:
+          transportSettings.transportDescriptor.default.listening_ports,
+        tls: transportSettings.transportDescriptor.default.tls,
+        calculate_crc:
+          transportSettings.transportDescriptor.default.calculate_crc,
+        check_crc: transportSettings.transportDescriptor.default.check_crc,
+        enable_tcp_nodelay:
+          transportSettings.transportDescriptor.default.enable_tcp_nodelay,
+        segment_size:
+          transportSettings.transportDescriptor.default.segment_size,
+        port_queue_capacity:
+          transportSettings.transportDescriptor.default.port_queue_capacity,
+        healthy_check_timeout_ms:
+          transportSettings.transportDescriptor.default
+            .healthy_check_timeout_ms,
+        rtps_dump_file:
+          transportSettings.transportDescriptor.default.rtps_dump_file,
       };
     default:
       return null;

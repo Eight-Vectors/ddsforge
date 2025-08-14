@@ -1,3 +1,5 @@
+import { domainParticipantFactoryProfile, defaultParticipantProfile, defaultTopicProfile, defaultTransportDescriptor } from './fastdds-profiles';
+
 export const fastDDSSchema = {
   dds: {
     "@_xmlns": "http://www.eprosima.com",
@@ -5,115 +7,15 @@ export const fastDDSSchema = {
       // Transport descriptors section
       transport_descriptors: [
         {
-          transport_descriptor: {
-            transport_id: "default_transport",
-            type: "UDPv4",
-            sendBufferSize: 65536,
-            receiveBufferSize: 65536,
-            maxMessageSize: 65500,
-            maxInitialPeersRange: 4,
-            interfaceWhiteList: [],
-            netmask_filter: "AUTO",
-            non_blocking_send: false,
-            output_port: 0,
-            TTL: 1,
-          },
+          transport_descriptor: defaultTransportDescriptor,
         },
       ],
 
       // Domain Participant Factory
-      domainparticipant_factory: {
-        "@_profile_name": "default_domainparticipant_factory",
-        qos: {
-          entity_factory: {
-            autoenable_created_entities: true,
-          },
-        },
-      },
+      domainparticipant_factory: domainParticipantFactoryProfile,
 
       // Participant profiles
-      participant: [
-        {
-          "@_profile_name": "default_participant",
-          domainId: 0,
-          rtps: {
-            name: "default_participant",
-            defaultUnicastLocatorList: [],
-            defaultMulticastLocatorList: [],
-            sendSocketBufferSize: 0,
-            listenSocketBufferSize: 0,
-            builtin: {
-              discovery_config: {
-                discoveryProtocol: "SIMPLE",
-                EDP: "SIMPLE",
-                simpleEDP: {
-                  PUBWRITER_SUBREADER: true,
-                  PUBREADER_SUBWRITER: true,
-                },
-                leaseDuration: {
-                  sec: "DURATION_INFINITY",
-                },
-                leaseAnnouncement: {
-                  sec: "DURATION_INFINITY",
-                },
-              },
-              avoid_builtin_multicast: false,
-              use_WriterLivelinessProtocol: true,
-              metatrafficUnicastLocatorList: [],
-              metatrafficMulticastLocatorList: [],
-              initialPeersList: [],
-              readerHistoryMemoryPolicy: "PREALLOCATED",
-              writerHistoryMemoryPolicy: "PREALLOCATED",
-              readerPayloadSize: 512,
-              writerPayloadSize: 512,
-              mutation_tries: 100,
-            },
-            port: {
-              portBase: 7400,
-              domainIDGain: 250,
-              participantIDGain: 2,
-              offsetd0: 0,
-              offsetd1: 10,
-              offsetd2: 1,
-              offsetd3: 11,
-            },
-            participantID: -1,
-            userTransports: [],
-            useBuiltinTransports: true,
-            propertiesPolicy: {
-              properties: [],
-            },
-            allocation: {
-              remote_locators: {
-                max_unicast_locators: 4,
-                max_multicast_locators: 1,
-              },
-              total_participants: {
-                initial: 0,
-                maximum: 0,
-                increment: 1,
-              },
-              total_readers: {
-                initial: 0,
-                maximum: 0,
-                increment: 1,
-              },
-              total_writers: {
-                initial: 0,
-                maximum: 0,
-                increment: 1,
-              },
-              max_partitions: 256,
-              max_user_data: 256,
-              max_properties: 512,
-              send_buffers: {
-                preallocated_number: 0,
-                dynamic: true,
-              },
-            },
-          },
-        },
-      ],
+      participant: [defaultParticipantProfile],
 
       // Data Writer profiles
       data_writer: [
@@ -300,22 +202,7 @@ export const fastDDSSchema = {
       ],
 
       // Topic profiles
-      topic: [
-        {
-          "@_profile_name": "default_topic",
-          historyQos: {
-            kind: "KEEP_LAST",
-            depth: 1000,
-          },
-          resourceLimitsQos: {
-            max_samples: 5000,
-            max_instances: 10,
-            max_samples_per_instance: 400,
-            allocated_samples: 100,
-            extra_samples: 1,
-          },
-        },
-      ],
+      topic: [defaultTopicProfile],
     },
 
     // Library settings

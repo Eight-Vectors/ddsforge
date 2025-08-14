@@ -1,10 +1,28 @@
 import type { FormField } from '../types/dds';
 
 export const isFieldModified = (currentField: FormField, originalFields: FormField[]): boolean => {
+  // Check if currentField or its path is valid
+  if (!currentField || !currentField.path) {
+    return false;
+  }
+  
   const originalField = findFieldByPath(originalFields, currentField.path);
   
   if (!originalField) {
     return true;
+  }
+  
+  // For object type fields, check if the value is actually different
+  // Empty objects {} should be considered same as null/undefined
+  if (currentField.type === 'object' && currentField.fields) {
+    const currentIsEmpty = !currentField.value || 
+      (typeof currentField.value === 'object' && Object.keys(currentField.value).length === 0);
+    const originalIsEmpty = !originalField.value || 
+      (typeof originalField.value === 'object' && Object.keys(originalField.value).length === 0);
+    
+    if (currentIsEmpty && originalIsEmpty) {
+      return false;
+    }
   }
   
   // Special handling for FastDDS default values
@@ -25,7 +43,7 @@ export const isFieldModified = (currentField: FormField, originalFields: FormFie
 };
 
 export const findFieldByPath = (fields: FormField[], path: string[]): FormField | undefined => {
-  if (path.length === 0) return undefined;
+  if (!path || path.length === 0) return undefined;
   
   let currentFields = fields;
   let foundField: FormField | undefined;

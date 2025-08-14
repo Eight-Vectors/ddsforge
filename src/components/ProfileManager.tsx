@@ -35,6 +35,7 @@ interface ProfileManagerProps {
   onProfileRename: (oldName: string, newName: string) => void;
   onProfileDuplicate: (profileName: string, newName: string) => void;
   disableMultipleProfiles?: boolean;
+  hideActionButtons?: boolean;
 }
 
 export function ProfileManager({
@@ -46,6 +47,7 @@ export function ProfileManager({
   onProfileRename,
   onProfileDuplicate,
   disableMultipleProfiles = false,
+  hideActionButtons = false,
 }: ProfileManagerProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -108,7 +110,8 @@ export function ProfileManager({
   };
 
   const profileTypeLabels: Record<string, string> = {
-    participant: "Participant",
+    domainparticipant_factory: "Domain Participant Factory",
+    participant: "Domain Participant",
     data_writer: "Data Writer",
     data_reader: "Data Reader",
     topic: "Topic",
@@ -164,48 +167,50 @@ export function ProfileManager({
                     {profile.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setProfileToRename(profile.name);
-                      setShowRenameDialog(true);
-                    }}
-                    title="Rename"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </Button>
-                  {!disableMultipleProfiles && (
+                {!hideActionButtons && (
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                     <Button
                       size="sm"
                       variant="ghost"
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setProfileToDuplicate(profile.name);
-                        setShowDuplicateDialog(true);
+                        setProfileToRename(profile.name);
+                        setShowRenameDialog(true);
                       }}
-                      title="Duplicate"
+                      title="Rename"
                     >
-                      <Copy className="w-3 h-3" />
+                      <Edit2 className="w-3 h-3" />
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onProfileDelete(profile.name);
-                    }}
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
+                    {!disableMultipleProfiles && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProfileToDuplicate(profile.name);
+                          setShowDuplicateDialog(true);
+                        }}
+                        title="Duplicate"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onProfileDelete(profile.name);
+                      }}
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>
@@ -243,12 +248,19 @@ export function ProfileManager({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="participant">Participant</SelectItem>
-                  <SelectItem value="data_writer">Data Writer</SelectItem>
-                  <SelectItem value="data_reader">Data Reader</SelectItem>
+                  <SelectItem value="domainparticipant_factory">
+                    Domain Participant Factory
+                  </SelectItem>
+                  <SelectItem value="participant">Domain Participant</SelectItem>
                   <SelectItem value="topic">Topic</SelectItem>
                   <SelectItem value="transport_descriptor">
                     Transport Descriptor
+                  </SelectItem>
+                  <SelectItem value="data_writer" disabled>
+                    Data Writer (Coming Soon)
+                  </SelectItem>
+                  <SelectItem value="data_reader" disabled>
+                    Data Reader (Coming Soon)
                   </SelectItem>
                 </SelectContent>
               </Select>

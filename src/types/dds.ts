@@ -36,8 +36,13 @@ export interface TransportDescriptor {
   TTL?: number;
   maxMessageSize?: number;
   maxInitialPeersRange?: number;
-  interfaceWhiteList?: string[];
+  interfaceWhiteList?: InterfaceWhiteListItem[];
   wan_addr?: string;
+}
+
+export interface InterfaceWhiteListItem {
+  address?: string;
+  interface?: string;
 }
 
 export interface ParticipantProfile {
