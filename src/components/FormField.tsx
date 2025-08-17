@@ -191,6 +191,21 @@ export const FormField: React.FC<FormFieldProps> = ({
     return (
       <div>
         {renderField()}
+        {shouldShowForceInclude() && (
+          <div className="mt-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={field.forceInclude || false}
+                onChange={(e) => handleForceIncludeChange(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+              />
+              <span className="text-gray-600">
+                Force include in minimal output
+              </span>
+            </label>
+          </div>
+        )}
         {validationError && (
           <p className="text-sm text-red-600 mt-1">{validationError}</p>
         )}

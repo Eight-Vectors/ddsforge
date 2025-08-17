@@ -14,7 +14,7 @@ export interface DependencyRule {
 
 export class FastDDSValidator {
   private rules: DependencyRule[] = [
-    // Transport reference rule
+    // transport reference rule
     {
       id: "transport-reference",
       name: "Transport Descriptor Reference",
@@ -23,18 +23,18 @@ export class FastDDSValidator {
           valid: true,
           errors: [],
           warnings: [],
-          autoFixAvailable: []
+          autoFixAvailable: [],
         };
 
         if (!config.profiles) return result;
 
-        // Get all transport IDs
+        // get all transport IDs
         const transportIds = new Set<string>();
         if (config.profiles.transport_descriptors) {
-          // Handle the case where transport_descriptors contains transport_descriptor directly
+          // handle the case where transport_descriptors contains transport_descriptor directly
           const td = config.profiles.transport_descriptors.transport_descriptor;
           if (td) {
-            // Check if transport_descriptor is an array or single object
+            // check if transport_descriptor is an array or single object
             const descriptors = Array.isArray(td) ? td : [td];
             descriptors.forEach((desc: any) => {
               if (desc.transport_id) {
@@ -42,13 +42,15 @@ export class FastDDSValidator {
               }
             });
           } else {
-            // Try looking directly at transport_descriptors array
-            const descriptors = Array.isArray(config.profiles.transport_descriptors)
+            // try looking directly at transport_descriptors array
+            const descriptors = Array.isArray(
+              config.profiles.transport_descriptors
+            )
               ? config.profiles.transport_descriptors
               : [config.profiles.transport_descriptors];
 
             descriptors.forEach((desc: any) => {
-              // Check multiple possible structures
+              // check multiple possible structures
               if (desc.transport_id) {
                 transportIds.add(desc.transport_id);
               } else if (desc.transport_descriptor?.transport_id) {
@@ -58,23 +60,29 @@ export class FastDDSValidator {
           }
         }
 
-        // Check participant transports
+        // check participant transports
         if (config.profiles.participant) {
           const participants = Array.isArray(config.profiles.participant)
             ? config.profiles.participant
             : [config.profiles.participant];
 
           participants.forEach((participant: any) => {
-            if (participant.rtps?.userTransports) {
-              // Handle the case where userTransports is wrapped in transport_id
+            // only validate transport IDs if useBuiltinTransports is false
+            if (
+              participant.rtps?.useBuiltinTransports === false &&
+              participant.rtps?.userTransports
+            ) {
+              // handle the case where userTransports is wrapped in transport_id
               let transportList;
               if (participant.rtps.userTransports.transport_id) {
-                // Handle { transport_id: [...] } structure
-                transportList = Array.isArray(participant.rtps.userTransports.transport_id)
+                // handle { transport_id: [...] } structure
+                transportList = Array.isArray(
+                  participant.rtps.userTransports.transport_id
+                )
                   ? participant.rtps.userTransports.transport_id
                   : [participant.rtps.userTransports.transport_id];
               } else {
-                // Handle direct array or single value
+                // handle direct array or single value
                 transportList = Array.isArray(participant.rtps.userTransports)
                   ? participant.rtps.userTransports
                   : [participant.rtps.userTransports];
@@ -82,18 +90,20 @@ export class FastDDSValidator {
 
               transportList.forEach((transportId: any) => {
                 // transportId should be a string at this point
-                const id = typeof transportId === 'string' ? transportId : (transportId.transport_id || transportId);
+                const id =
+                  typeof transportId === "string"
+                    ? transportId
+                    : transportId.transport_id || transportId;
                 if (!transportIds.has(id)) {
                   result.valid = false;
                   result.errors.push(
                     `Transport '${id}' not found in transport_descriptors`
                   );
-                  // Don't offer auto-fix for missing transports
                 }
               });
             }
 
-            // Check if builtin transports disabled without user transports
+            // check if builtin transports disabled without user transports
             if (participant.rtps?.useBuiltinTransports === false) {
               if (
                 !participant.rtps.userTransports ||
@@ -113,7 +123,7 @@ export class FastDDSValidator {
       },
     },
 
-    // Empty locator list rule
+    // empty locator list rule
     {
       id: "empty-locator",
       name: "Empty Locator List Format",
@@ -132,13 +142,13 @@ export class FastDDSValidator {
               );
               result.autoFixAvailable?.push("empty-locator");
             } else if (typeof list === "object" && !Array.isArray(list)) {
-              // Check if it has a locator with value 0 or other non-empty value
+              // check if it has a locator with value 0 or other non-empty value
               if (
                 list.locator !== undefined &&
                 list.locator !== null &&
                 list.locator !== ""
               ) {
-                // This is OK - locator has content
+                // locator has content
               }
             }
           }

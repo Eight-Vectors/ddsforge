@@ -10,9 +10,6 @@ export function FastDDSProfileEditor({
   uploadedData,
   onXMLGenerate,
 }: FastDDSProfileEditorProps) {
-  // If uploadedData is provided, use the uploader component (edit mode)
-  // Otherwise, use the creator component (create mode)
-  
   if (uploadedData) {
     return (
       <FastDDSProfileUploader
@@ -21,10 +18,6 @@ export function FastDDSProfileEditor({
       />
     );
   }
-  
-  return (
-    <FastDDSProfileCreator
-      onXMLGenerate={onXMLGenerate}
-    />
-  );
+
+  return <FastDDSProfileCreator onXMLGenerate={onXMLGenerate} />;
 }

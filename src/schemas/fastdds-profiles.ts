@@ -1,9 +1,3 @@
-/**
- * FastDDS Default Profiles
- * This file contains default profile configurations for FastDDS
- * Settings are imported from fastdds-settings.ts for reusability
- */
-
 import {
   threadSettings,
   networkSettings,
@@ -11,23 +5,18 @@ import {
   qosSettings,
   memorySettings,
   fastDDSSettings,
-  propertiesPolicy,
   rtpsSettings,
   transportSettings,
 } from "./fastdds-settings";
 
-// Helper function to create an empty locator list
-// In FastDDS, empty locator lists must be represented as {locator: {}}
 export const createEmptyLocatorList = () => ({ locator: {} });
 
-// Helper function to create a locator with specific transport
 export const createLocator = (kind: string, settings: any) => {
   const locator: any = {};
   locator[kind] = { ...networkSettings.locator.default, ...settings };
   return locator;
 };
 
-// Helper function to create an external locator
 export const createExternalLocator = (
   kind: "udpv4" | "udpv6",
   settings: any
@@ -49,7 +38,6 @@ export const createExternalLocator = (
   };
 };
 
-// Helper function to create a duration type
 export const createDuration = (
   sec: number | string = 0,
   nanosec: number = 0
@@ -67,7 +55,6 @@ export const createDuration = (
   };
 };
 
-// Helper function to create default discovery config
 export const createDefaultDiscoveryConfig = () => ({
   discoveryProtocol: discoverySettings.discoveryProtocol.default,
   ignoreParticipantFlags: discoverySettings.ignoreParticipantFlags.default,
@@ -189,7 +176,6 @@ export const createBuiltinConfig = (overrides: any = {}) => {
   return builtin;
 };
 
-// Helper function to create a property
 export const createProperty = (
   name: string,
   value: string,
@@ -200,7 +186,6 @@ export const createProperty = (
   propagate,
 });
 
-// Helper function to create a properties policy
 export const createPropertiesPolicy = (
   properties: Array<{ name: string; value: string; propagate?: boolean }> = []
 ) => {
@@ -220,7 +205,6 @@ export const createPropertiesPolicy = (
   };
 };
 
-// Helper function to create remote locators allocation
 export const createRemoteLocatorsAllocation = (overrides: any = {}) => ({
   max_unicast_locators:
     overrides.max_unicast_locators ||
@@ -231,7 +215,6 @@ export const createRemoteLocatorsAllocation = (overrides: any = {}) => ({
       : memorySettings.remoteLocatorsAllocation.default.max_multicast_locators,
 });
 
-// Helper function to create allocation configuration
 export const createAllocationConfig = (overrides: any = {}) => ({
   initial:
     overrides.initial !== undefined
@@ -246,7 +229,6 @@ export const createAllocationConfig = (overrides: any = {}) => ({
     memorySettings.allocationConfiguration.default.increment,
 });
 
-// Helper function to create send buffers configuration
 export const createSendBuffersConfig = (overrides: any = {}) => ({
   preallocated_number:
     overrides.preallocated_number !== undefined
@@ -256,11 +238,10 @@ export const createSendBuffersConfig = (overrides: any = {}) => ({
     overrides.dynamic !== undefined
       ? overrides.dynamic
       : memorySettings.sendBuffersAllocation.default.dynamic,
-  // Note: network_buffers_config is not supported in FastDDS XML format
-  // It's only available in the C++ API
+  //network_buffers_config is not supported in FastDDS XML format
+  // it's only available in the C++ API
 });
 
-// Helper function to create port configuration
 export const createPortConfig = (overrides: any = {}) => ({
   portBase: overrides.portBase || rtpsSettings.port.default.portBase,
   domainIDGain:
@@ -285,7 +266,6 @@ export const createPortConfig = (overrides: any = {}) => ({
       : rtpsSettings.port.default.offsetd3,
 });
 
-// Helper function to create RTPS configuration
 export const createRTPSConfig = (overrides: any = {}) => {
   const rtps: any = {
     name:
@@ -370,7 +350,6 @@ export const createRTPSConfig = (overrides: any = {}) => {
   return rtps;
 };
 
-// Helper function to create HistoryQoS
 export const createHistoryQos = (
   kind: string = qosSettings.historyQos.default.kind,
   depth: number = qosSettings.historyQos.default.depth
@@ -379,7 +358,6 @@ export const createHistoryQos = (
   depth,
 });
 
-// Helper function to create ResourceLimitsQos
 export const createResourceLimitsQos = (overrides: any = {}) => ({
   max_samples:
     overrides.max_samples !== undefined
@@ -446,7 +424,6 @@ export const fastDDSProfiles = {
   }),
 };
 
-// Helper function to create a topic profile
 export const createTopicProfile = (name: string, overrides: any = {}) => ({
   "@_profile_name": name,
   "@_is_default_profile": overrides.is_default_profile || false,
@@ -454,12 +431,10 @@ export const createTopicProfile = (name: string, overrides: any = {}) => ({
   resourceLimitsQos: overrides.resourceLimitsQos || createResourceLimitsQos(),
 });
 
-// Export individual profiles for easier access
 export const domainParticipantFactoryProfile =
   fastDDSProfiles.domainparticipant_factory;
 export const defaultParticipantProfile = fastDDSProfiles.participant;
 
-// Default topic profile
 export const defaultTopicProfile = createTopicProfile("default_topic", {
   is_default_profile: false,
   historyQos: createHistoryQos("KEEP_LAST", 1),
@@ -472,7 +447,6 @@ export const defaultTopicProfile = createTopicProfile("default_topic", {
   }),
 });
 
-// Helper function to create a transport descriptor
 export const createTransportDescriptor = (
   id: string,
   type: string = "UDPv4",
@@ -503,7 +477,7 @@ export const createTransportDescriptor = (
         : transportSettings.transportDescriptor.default.netmask_filter,
   };
 
-  // Add type-specific fields based on transport type
+  // add type-specific fields based on transport type
   if (type === "UDPv4" || type === "UDPv6") {
     descriptor.TTL =
       overrides.TTL !== undefined
@@ -592,7 +566,7 @@ export const createTransportDescriptor = (
         : transportSettings.transportDescriptor.default.rtps_dump_file;
   }
 
-  // Add optional fields if provided
+  // add optional fields if provided
   if (overrides.interfaceWhiteList) {
     descriptor.interfaceWhiteList = overrides.interfaceWhiteList;
   }
@@ -604,13 +578,11 @@ export const createTransportDescriptor = (
   return descriptor;
 };
 
-// Default transport descriptor
 export const defaultTransportDescriptor = createTransportDescriptor(
   "default_transport",
   "UDPv4"
 );
 
-// Topic profile structure
 export const topicProfileStructure = {
   attributes: {
     profile_name: {

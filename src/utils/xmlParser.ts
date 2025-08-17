@@ -5,6 +5,7 @@ import { fastDDSSchema } from "../schemas/fastdds-schema";
 import { isSchemaDefault } from "./schemaDefaults";
 import { isFieldModified } from "./fieldUtils";
 import { FastDDSValidator } from "./fastddsRules";
+import { transportSettings, rtpsSettings } from "../schemas/fastdds-settings";
 
 export const parseXML = async (xmlContent: string): Promise<any> => {
   try {
@@ -73,21 +74,12 @@ export const buildXML = (
         errors: validationResult.errors,
         warnings: validationResult.warnings,
       });
-
-      // Auto-fix if enabled
-      if (options?.autoFix && validationResult.autoFixAvailable.length > 0) {
-        processedData = validator.autoFix(data);
-        console.log(
-          "Applied auto-fixes for:",
-          validationResult.autoFixAvailable
-        );
-      }
     }
   }
 
   // Preprocess data to handle self-closing tags and proper array formatting for CycloneDDS
   if (vendor === "cyclonedds") {
-    const preprocessForCycloneDDS = (obj: any, parentKey?: string) => {
+    const preprocessForCycloneDDS = (obj: any, _parentKey?: string) => {
       if (typeof obj !== "object" || obj === null) return obj;
 
       const processed: any = {};
@@ -133,16 +125,25 @@ export const buildXML = (
           } else {
             processed[key] = preprocessForCycloneDDS(interfacesObj, key);
           }
-        } else if (key === "Threads" && typeof value === "object" && value !== null) {
+        } else if (
+          key === "Threads" &&
+          typeof value === "object" &&
+          value !== null
+        ) {
           // Handle Threads - should contain Thread array
           const threadsObj = value as any;
-          
+
           // Check if attributes/content are directly on Threads (wrong structure)
-          if (Object.keys(threadsObj).some(k => k.startsWith('@_') || k === 'Scheduling' || k === 'StackSize')) {
+          if (
+            Object.keys(threadsObj).some(
+              (k) =>
+                k.startsWith("@_") || k === "Scheduling" || k === "StackSize"
+            )
+          ) {
             // Convert to Thread array with single element
             const thread: any = {};
-            Object.keys(threadsObj).forEach(k => {
-              if (k !== 'Thread') {
+            Object.keys(threadsObj).forEach((k) => {
+              if (k !== "Thread") {
                 thread[k] = threadsObj[k];
               }
             });
@@ -171,18 +172,24 @@ export const buildXML = (
               ? "NetworkPartition"
               : "PartitionMapping";
           const partitionObj = value as any;
-          
+
           // Check if attributes are directly on the container (wrong structure)
-          if (Object.keys(partitionObj).some(k => k.startsWith('@_')) && !partitionObj[partitionType]) {
+          if (
+            Object.keys(partitionObj).some((k) => k.startsWith("@_")) &&
+            !partitionObj[partitionType]
+          ) {
             // Convert attributes on container to a single element in the array
             const element: any = {};
-            Object.keys(partitionObj).forEach(k => {
-              if (k.startsWith('@_')) {
+            Object.keys(partitionObj).forEach((k) => {
+              if (k.startsWith("@_")) {
                 element[k] = partitionObj[k];
               }
             });
             processed[key] = [element];
-          } else if (partitionObj[partitionType] && Array.isArray(partitionObj[partitionType])) {
+          } else if (
+            partitionObj[partitionType] &&
+            Array.isArray(partitionObj[partitionType])
+          ) {
             // Correct structure - has the appropriate array
             processed[key] = partitionObj[partitionType];
           } else {
@@ -232,10 +239,8 @@ export const buildXML = (
       },
     };
   } else if (vendor === "fastdds") {
-    // Remove namespace attributes from data if they exist
     const { "@_xmlns": _, ...cleanData } = processedData;
 
-    // Add xmlns to profiles if it exists
     if (cleanData.profiles) {
       cleanData.profiles = {
         "@_xmlns": "http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles",
@@ -258,28 +263,22 @@ export const buildXML = (
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   xml += builder.build(xmlData);
 
-  // Post-process XML for CycloneDDS to convert empty elements with only attributes to self-closing
   if (vendor === "cyclonedds") {
-    // Convert <Peer attribute="value"></Peer> to <Peer attribute="value"/>
     xml = xml.replace(/<Peer([^>]*?)><\/Peer>/g, "<Peer$1/>");
-    // Convert <NetworkInterface attribute="value"></NetworkInterface> to <NetworkInterface attribute="value"/>
+
     xml = xml.replace(
       /<NetworkInterface([^>]*?)><\/NetworkInterface>/g,
       "<NetworkInterface$1/>"
     );
 
-    // Fix NetworkInterface array structure
-    // First, check if Interfaces has attributes directly on it (wrong structure)
     const interfacesWithAttrs = xml.match(/<Interfaces([^>]+)><\/Interfaces>/);
     if (interfacesWithAttrs && interfacesWithAttrs[1].trim()) {
-      // Convert <Interfaces attr="value"></Interfaces> to <Interfaces><NetworkInterface attr="value"/></Interfaces>
       xml = xml.replace(
         /<Interfaces([^>]+)><\/Interfaces>/,
         "<Interfaces>\n        <NetworkInterface$1/>\n      </Interfaces>"
       );
     }
 
-    // Look for <Interfaces><NetworkInterface><0>...</0><1>...</1></NetworkInterface></Interfaces>
     const interfacesMatch = xml.match(
       /<Interfaces>\s*<NetworkInterface>([\s\S]*?)<\/NetworkInterface>\s*<\/Interfaces>/
     );
@@ -309,8 +308,6 @@ export const buildXML = (
       }
     }
 
-    // Also handle the case where we have Interfaces as a direct array
-    // Look for patterns like <Interfaces><0>...</0><1>...</1></Interfaces>
     const interfacesDirectArray = xml.match(
       /<Interfaces>\s*<(\d+)[^>]*?[\s\S]*?<\/Interfaces>/
     );
@@ -346,133 +343,741 @@ export const buildXML = (
         }
       }
     }
-    
+
     // Fix Threads with attributes/content directly on it
-    const threadsWithContent = xml.match(/<Threads([^>]*)>([\s\S]*?)<\/Threads>/);
+    const threadsWithContent = xml.match(
+      /<Threads([^>]*)>([\s\S]*?)<\/Threads>/
+    );
     if (threadsWithContent) {
       const attrs = threadsWithContent[1];
       const content = threadsWithContent[2];
-      
-      // Check if content doesn't contain <Thread> elements
+
+      // check if content doesn't contain <Thread> elements
       if (!/<Thread[^>]*>/.test(content)) {
-        // This means the content is directly under Threads, not in Thread elements
+        // the content is directly under Threads, not in Thread elements
         const newThreads = `<Threads>\n    <Thread${attrs}>${content}</Thread>\n  </Threads>`;
         xml = xml.replace(/<Threads[^>]*>[\s\S]*?<\/Threads>/, newThreads);
       }
     }
-    
-    // Fix Thread elements with numbered children
-    // Look for <Thread><0>...</0></Thread> or <Threads><0>...</0></Threads>
     const threadPatterns = [
-      { container: 'Thread', element: 'Thread' },
-      { container: 'Threads', element: 'Thread' }
+      { container: "Thread", element: "Thread" },
+      { container: "Threads", element: "Thread" },
     ];
-    
+
     threadPatterns.forEach(({ container, element }) => {
-      const regex = new RegExp(`<${container}>([\\s\\S]*?)<\\/${container}>`, 'g');
+      const regex = new RegExp(
+        `<${container}>([\\s\\S]*?)<\\/${container}>`,
+        "g"
+      );
       xml = xml.replace(regex, (match, content) => {
-        // Check if content has numbered elements
+        // check if content has numbered elements
         if (/<\d+[^>]*>/.test(content)) {
           const threads: string[] = [];
           const elemRegex = /<(\d+)([^>]*?)(?:\/|>([\s\\S]*?)<\/\1)>/g;
           let elemMatch;
           while ((elemMatch = elemRegex.exec(content)) !== null) {
             const attrs = elemMatch[2];
-            const innerContent = elemMatch[3] || '';
+            const innerContent = elemMatch[3] || "";
             if (innerContent) {
               threads.push(`<${element}${attrs}>${innerContent}</${element}>`);
             } else {
               threads.push(`<${element}${attrs}/>`);
             }
           }
-          
+
           if (threads.length > 0) {
-            return `<${container}>\n${threads.map(t => '    ' + t).join('\n')}\n  </${container}>`;
+            return `<${container}>\n${threads
+              .map((t) => "    " + t)
+              .join("\n")}\n  </${container}>`;
           }
         }
         return match;
       });
     });
-    
+
     // Fix partition containers with attributes directly on them
     const partitionContainers = [
-      { container: 'IgnoredPartitions', element: 'IgnoredPartition' },
-      { container: 'NetworkPartitions', element: 'NetworkPartition' },
-      { container: 'PartitionMappings', element: 'PartitionMapping' }
+      { container: "IgnoredPartitions", element: "IgnoredPartition" },
+      { container: "NetworkPartitions", element: "NetworkPartition" },
+      { container: "PartitionMappings", element: "PartitionMapping" },
     ];
-    
+
     partitionContainers.forEach(({ container, element }) => {
       // Check if container has attributes directly on it (wrong structure)
-      const containerWithAttrs = xml.match(new RegExp(`<${container}([^>]+)><\\/${container}>`, 'g'));
+      const containerWithAttrs = xml.match(
+        new RegExp(`<${container}([^>]+)><\\/${container}>`, "g")
+      );
       if (containerWithAttrs) {
-        xml = xml.replace(new RegExp(`<${container}([^>]+)><\\/${container}>`, 'g'), (match, attrs) => {
-          if (attrs.trim()) {
-            // Convert to proper structure with element inside
-            return `<${container}>\n        <${element}${attrs}/>\n      </${container}>`;
+        xml = xml.replace(
+          new RegExp(`<${container}([^>]+)><\\/${container}>`, "g"),
+          (match, attrs) => {
+            if (attrs.trim()) {
+              // Convert to proper structure with element inside
+              return `<${container}>\n        <${element}${attrs}/>\n      </${container}>`;
+            }
+            return match;
           }
-          return match;
-        });
+        );
       }
     });
-    
+
     // Convert Library elements to self-closing tags
     const libraryRegex = /<Library([^>]+?)><\/Library>/g;
-    xml = xml.replace(libraryRegex, '<Library$1/>');
-    
+    xml = xml.replace(libraryRegex, "<Library$1/>");
+
     // Fix partition elements with numbered children
-    const partitionTypes = ['IgnoredPartition', 'NetworkPartition', 'PartitionMapping'];
-    partitionTypes.forEach(partitionType => {
-      // Look for <PartitionType><0>...</0></PartitionType>
-      const regex = new RegExp(`<${partitionType}>\\s*<(\\d+)[^>]*?>([\\s\\S]*?)<\\/\\1>\\s*<\\/${partitionType}>`, 'g');
-      xml = xml.replace(regex, (match, num, content) => {
-        // Convert to simple text content
+    const partitionTypes = [
+      "IgnoredPartition",
+      "NetworkPartition",
+      "PartitionMapping",
+    ];
+    partitionTypes.forEach((partitionType) => {
+      const regex = new RegExp(
+        `<${partitionType}>\\s*<(\\d+)[^>]*?>([\\s\\S]*?)<\\/\\1>\\s*<\\/${partitionType}>`,
+        "g"
+      );
+      xml = xml.replace(regex, (_match, _num, content) => {
+        // convert to simple text content
         return `<${partitionType}>${content}</${partitionType}>`;
       });
-      
-      // Also handle arrays of partition elements with numbered children
-      const parentType = partitionType === 'IgnoredPartition' ? 'IgnoredPartitions' :
-                        partitionType === 'NetworkPartition' ? 'NetworkPartitions' : 'PartitionMappings';
-      const parentRegex = new RegExp(`<${parentType}>([\\s\\S]*?)<\\/${parentType}>`, 'g');
-      
-      xml = xml.replace(parentRegex, (match, content) => {
+
+      // also handle arrays of partition elements with numbered children
+      const parentType =
+        partitionType === "IgnoredPartition"
+          ? "IgnoredPartitions"
+          : partitionType === "NetworkPartition"
+          ? "NetworkPartitions"
+          : "PartitionMappings";
+      const parentRegex = new RegExp(
+        `<${parentType}>([\\s\\S]*?)<\\/${parentType}>`,
+        "g"
+      );
+
+      xml = xml.replace(parentRegex, (_match, content) => {
         // Replace numbered elements within the parent
         const elemRegex = /<(\d+)([^>]*?)(?:\/|>([\s\\S]*?)<\/\1)>/g;
-        const fixedContent = content.replace(elemRegex, (elemMatch: string, num: string, attrs: string, innerContent: string) => {
-          if (innerContent) {
-            return `<${partitionType}${attrs}>${innerContent}</${partitionType}>`;
-          } else {
-            return `<${partitionType}${attrs}/>`;
+        const fixedContent = content.replace(
+          elemRegex,
+          (
+            _elemMatch: string,
+            _num: string,
+            attrs: string,
+            innerContent: string
+          ) => {
+            if (innerContent) {
+              return `<${partitionType}${attrs}>${innerContent}</${partitionType}>`;
+            } else {
+              return `<${partitionType}${attrs}/>`;
+            }
           }
-        });
+        );
         return `<${parentType}>${fixedContent}</${parentType}>`;
       });
     });
-    
-    // Fix Category array with numbered children
-    // Look for <Category><0>...</0><1>...</1></Category>
+
     const categoryRegex = /<Category>([\s\S]*?)<\/Category>/g;
     xml = xml.replace(categoryRegex, (match, content) => {
-      // Check if content has numbered elements
       if (/<\d+[^>]*>/.test(content)) {
         const categories: string[] = [];
         const elemRegex = /<(\d+)([^>]*?)(?:\/|>([\s\S]*?)<\/\1)>/g;
         let elemMatch;
         while ((elemMatch = elemRegex.exec(content)) !== null) {
-          const innerContent = elemMatch[3] || '';
+          const innerContent = elemMatch[3] || "";
           if (innerContent) {
             categories.push(`<Category>${innerContent}</Category>`);
           }
         }
-        
+
         if (categories.length > 0) {
-          return categories.join('\n      ');
+          return categories.join("\n      ");
         }
       }
       return match;
     });
   }
 
+  if (vendor === "fastdds") {
+    xml = xml.replace(
+      /<allowlist>([\s\S]*?)<\/allowlist>/g,
+      (match, content) => {
+        // Extract name and netmask_filter values
+        const interfaces: string[] = [];
+
+        // Check if content has direct name/netmask_filter elements
+        if (/<name>/.test(content) || /<netmask_filter>/.test(content)) {
+          const nameMatch = content.match(/<name>([^<]*)<\/name>/);
+          const netmaskMatch = content.match(
+            /<netmask_filter>([^<]*)<\/netmask_filter>/
+          );
+
+          if (nameMatch) {
+            let interfaceTag = `<interface name="${nameMatch[1]}"`;
+            if (netmaskMatch) {
+              interfaceTag += ` netmask_filter="${netmaskMatch[1]}"`;
+            }
+            interfaceTag += "/>";
+            interfaces.push(interfaceTag);
+          }
+        } else {
+          // Check for numbered array elements (e.g., <0><name>...</name></0>)
+          const arrayRegex = /<(\d+)>([\s\S]*?)<\/\1>/g;
+          let arrayMatch;
+          while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+            const itemContent = arrayMatch[2];
+            const itemNameMatch = itemContent.match(/<name>([^<]*)<\/name>/);
+            const itemNetmaskMatch = itemContent.match(
+              /<netmask_filter>([^<]*)<\/netmask_filter>/
+            );
+
+            if (itemNameMatch) {
+              let interfaceTag = `<interface name="${itemNameMatch[1]}"`;
+              if (itemNetmaskMatch) {
+                interfaceTag += ` netmask_filter="${itemNetmaskMatch[1]}"`;
+              }
+              interfaceTag += "/>";
+              interfaces.push(interfaceTag);
+            }
+          }
+        }
+
+        if (interfaces.length > 0) {
+          return `<allowlist>\n${interfaces
+            .map((i) => "              " + i)
+            .join("\n")}\n            </allowlist>`;
+        }
+        return match;
+      }
+    );
+
+    // Process blocklist
+    xml = xml.replace(
+      /<blocklist>([\s\S]*?)<\/blocklist>/g,
+      (match, content) => {
+        const interfaces: string[] = [];
+
+        // Check if content has direct name elements
+        if (/<name>/.test(content)) {
+          const nameMatch = content.match(/<name>([^<]*)<\/name>/);
+          if (nameMatch) {
+            interfaces.push(`<interface name="${nameMatch[1]}"/>`);
+          }
+        } else {
+          // Check for numbered array elements
+          const arrayRegex = /<(\d+)>([\s\S]*?)<\/\1>/g;
+          let arrayMatch;
+          while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+            const itemContent = arrayMatch[2];
+            const itemNameMatch = itemContent.match(/<name>([^<]*)<\/name>/);
+
+            if (itemNameMatch) {
+              interfaces.push(`<interface name="${itemNameMatch[1]}"/>`);
+            }
+          }
+        }
+
+        if (interfaces.length > 0) {
+          return `<blocklist>\n${interfaces
+            .map((i) => "              " + i)
+            .join("\n")}\n            </blocklist>`;
+        }
+        return match;
+      }
+    );
+
+    // Fix listening_ports format - first merge multiple listening_ports into one
+    const listeningPortsRegex = /<listening_ports>[\s\S]*?<\/listening_ports>/g;
+    const allListeningPorts = xml.match(listeningPortsRegex);
+
+    if (allListeningPorts && allListeningPorts.length > 0) {
+      const allPorts: string[] = [];
+
+      // Extract all ports from all listening_ports elements
+      allListeningPorts.forEach((lpElement) => {
+        // Extract content between tags
+        const contentMatch = lpElement.match(
+          /<listening_ports>([\s\S]*?)<\/listening_ports>/
+        );
+        if (contentMatch) {
+          const content = contentMatch[1];
+
+          // Check if already has <port> elements
+          if (/<port>/.test(content)) {
+            const portMatches = content.match(/<port>([^<]*)<\/port>/g);
+            if (portMatches) {
+              portMatches.forEach((portMatch) => {
+                const portValue = portMatch.match(/<port>([^<]*)<\/port>/);
+                if (portValue && portValue[1].trim()) {
+                  allPorts.push(portValue[1].trim());
+                }
+              });
+            }
+          } else if (/<\d+>/.test(content)) {
+            // Handle numbered array elements
+            const arrayRegex = /<(\d+)>([^<]*)<\/\1>/g;
+            let arrayMatch;
+            while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+              const port = arrayMatch[2].trim();
+              if (port) {
+                allPorts.push(port);
+              }
+            }
+          } else {
+            // Simple value
+            const trimmedContent = content.trim();
+            if (trimmedContent) {
+              allPorts.push(trimmedContent);
+            }
+          }
+        }
+      });
+
+      // remove all existing listening_ports elements and their surrounding whitespace
+      xml = xml.replace(
+        /\s*<listening_ports>[\s\S]*?<\/listening_ports>\s*/g,
+        "\n"
+      );
+
+      // Clean up multiple consecutive newlines
+      xml = xml.replace(/\n\s*\n\s*\n/g, "\n\n");
+
+      // find where to insert the merged listening_ports
+      // look for a pattern that indicates where listening_ports should be
+      const transportDescriptorMatch = xml.match(
+        /(<transport_descriptor[^>]*>[\s\S]*?)(\s*)(<\/transport_descriptor>)/
+      );
+
+      if (transportDescriptorMatch && allPorts.length > 0) {
+        const beforeClosingTag = transportDescriptorMatch[1].trimEnd();
+        const closingTag = transportDescriptorMatch[3];
+
+        // create the merged listening_ports element with proper indentation
+        const portElements = allPorts
+          .map((port: string) => `            <port>${port}</port>`)
+          .join("\n");
+        const mergedListeningPorts = `\n        <listening_ports>\n${portElements}\n        </listening_ports>`;
+
+        // Insert the merged listening_ports before the closing tag
+        xml = xml.replace(
+          transportDescriptorMatch[0],
+          beforeClosingTag + mergedListeningPorts + "\n        " + closingTag
+        );
+      }
+    }
+
+    // Process TLS elements - collect all array elements that need to be merged
+    const tlsArrayElements = {
+      verify_mode: [] as string[],
+      options: [] as string[],
+      verify_paths: [] as string[],
+    };
+
+    // Extract verify_mode values
+    const verifyModeRegex = /<verify_mode>[\s\S]*?<\/verify_mode>/g;
+    const allVerifyModes = xml.match(verifyModeRegex);
+    if (allVerifyModes) {
+      allVerifyModes.forEach((vmElement) => {
+        const contentMatch = vmElement.match(
+          /<verify_mode>([\s\S]*?)<\/verify_mode>/
+        );
+        if (contentMatch) {
+          const content = contentMatch[1];
+          if (/<verify>/.test(content)) {
+            const verifyMatches = content.match(/<verify>([^<]*)<\/verify>/g);
+            if (verifyMatches) {
+              verifyMatches.forEach((verifyMatch) => {
+                const verifyValue = verifyMatch.match(
+                  /<verify>([^<]*)<\/verify>/
+                );
+                if (verifyValue && verifyValue[1].trim()) {
+                  tlsArrayElements.verify_mode.push(verifyValue[1].trim());
+                }
+              });
+            }
+          } else if (/<\d+>/.test(content)) {
+            const arrayRegex = /<(\d+)>([^<]*)<\/\1>/g;
+            let arrayMatch;
+            while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+              const verify = arrayMatch[2].trim();
+              if (verify) {
+                tlsArrayElements.verify_mode.push(verify);
+              }
+            }
+          } else {
+            const trimmedContent = content.trim();
+            if (trimmedContent) {
+              tlsArrayElements.verify_mode.push(trimmedContent);
+            }
+          }
+        }
+      });
+    }
+
+    // Extract options values
+    const optionsRegex = /<options>[\s\S]*?<\/options>/g;
+    const allOptions = xml.match(optionsRegex);
+    if (allOptions) {
+      allOptions.forEach((optElement) => {
+        const contentMatch = optElement.match(/<options>([\s\S]*?)<\/options>/);
+        if (contentMatch) {
+          const content = contentMatch[1];
+          if (/<option>/.test(content)) {
+            const optionMatches = content.match(/<option>([^<]*)<\/option>/g);
+            if (optionMatches) {
+              optionMatches.forEach((optionMatch) => {
+                const optionValue = optionMatch.match(
+                  /<option>([^<]*)<\/option>/
+                );
+                if (optionValue && optionValue[1].trim()) {
+                  tlsArrayElements.options.push(optionValue[1].trim());
+                }
+              });
+            }
+          } else if (/<\d+>/.test(content)) {
+            const arrayRegex = /<(\d+)>([^<]*)<\/\1>/g;
+            let arrayMatch;
+            while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+              const option = arrayMatch[2].trim();
+              if (option) {
+                tlsArrayElements.options.push(option);
+              }
+            }
+          } else {
+            const trimmedContent = content.trim();
+            if (trimmedContent) {
+              tlsArrayElements.options.push(trimmedContent);
+            }
+          }
+        }
+      });
+    }
+
+    // Extract verify_paths values
+    const verifyPathsRegex = /<verify_paths>[\s\S]*?<\/verify_paths>/g;
+    const allVerifyPaths = xml.match(verifyPathsRegex);
+    if (allVerifyPaths) {
+      allVerifyPaths.forEach((vpElement) => {
+        const contentMatch = vpElement.match(
+          /<verify_paths>([\s\S]*?)<\/verify_paths>/
+        );
+        if (contentMatch) {
+          const content = contentMatch[1];
+          if (/<verify_path>/.test(content)) {
+            const pathMatches = content.match(
+              /<verify_path>([^<]*)<\/verify_path>/g
+            );
+            if (pathMatches) {
+              pathMatches.forEach((pathMatch) => {
+                const pathValue = pathMatch.match(
+                  /<verify_path>([^<]*)<\/verify_path>/
+                );
+                if (pathValue && pathValue[1].trim()) {
+                  tlsArrayElements.verify_paths.push(pathValue[1].trim());
+                }
+              });
+            }
+          } else if (/<\d+>/.test(content)) {
+            const arrayRegex = /<(\d+)>([^<]*)<\/\1>/g;
+            let arrayMatch;
+            while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+              const path = arrayMatch[2].trim();
+              if (path) {
+                tlsArrayElements.verify_paths.push(path);
+              }
+            }
+          } else {
+            const trimmedContent = content.trim();
+            if (trimmedContent) {
+              tlsArrayElements.verify_paths.push(trimmedContent);
+            }
+          }
+        }
+      });
+    }
+
+    // Remove all these elements from the XML
+    xml = xml.replace(/\s*<verify_mode>[\s\S]*?<\/verify_mode>/g, "");
+    xml = xml.replace(/\s*<options>[\s\S]*?<\/options>/g, "");
+    xml = xml.replace(/\s*<verify_paths>[\s\S]*?<\/verify_paths>/g, "");
+
+    // Clean up multiple consecutive blank lines
+    xml = xml.replace(/\n\s*\n\s*\n/g, "\n");
+
+    //  rebuild the TLS section with proper formatting
+    const tlsMatch = xml.match(/(<tls[^>]*>)([\s\S]*?)(<\/tls>)/);
+    if (tlsMatch) {
+      const tlsOpenTag = tlsMatch[1];
+      let tlsContent = tlsMatch[2];
+      const tlsCloseTag = tlsMatch[3];
+
+      // Build the new elements to insert
+      const newElements: string[] = [];
+
+      if (tlsArrayElements.verify_mode.length > 0) {
+        const verifyElements = tlsArrayElements.verify_mode
+          .map((verify: string) => `              <verify>${verify}</verify>`)
+          .join("\n");
+        newElements.push(
+          `            <verify_mode>\n${verifyElements}\n            </verify_mode>`
+        );
+      }
+
+      if (tlsArrayElements.options.length > 0) {
+        const optionElements = tlsArrayElements.options
+          .map((option: string) => `              <option>${option}</option>`)
+          .join("\n");
+        newElements.push(
+          `            <options>\n${optionElements}\n            </options>`
+        );
+      }
+
+      if (tlsArrayElements.verify_paths.length > 0) {
+        const pathElements = tlsArrayElements.verify_paths
+          .map(
+            (path: string) => `              <verify_path>${path}</verify_path>`
+          )
+          .join("\n");
+        newElements.push(
+          `            <verify_paths>\n${pathElements}\n            </verify_paths>`
+        );
+      }
+
+      // trim the content and add new elements
+      tlsContent = tlsContent.trim();
+      if (tlsContent && newElements.length > 0) {
+        tlsContent = `\n            ${tlsContent}\n${newElements.join(
+          "\n"
+        )}\n          `;
+      } else if (newElements.length > 0) {
+        tlsContent = `\n${newElements.join("\n")}\n          `;
+      } else if (tlsContent) {
+        tlsContent = `\n            ${tlsContent}\n          `;
+      }
+
+      // Replace the TLS section
+      xml = xml.replace(tlsMatch[0], tlsOpenTag + tlsContent + tlsCloseTag);
+    }
+
+    // Fix discoveryServersList format - wrap udpv4/udpv6 in locator elements
+    xml = xml.replace(
+      /(\s*)<discoveryServersList>([\s\S]*?)<\/discoveryServersList>/g,
+      (match, indent, content) => {
+        // Check if content has direct udpv4/udpv6 elements (without locator wrapper)
+        if (
+          (/<udpv4>/.test(content) || /<udpv6>/.test(content)) &&
+          !/<locator>/.test(content)
+        ) {
+          // determine the base indentation from the discoveryServersList element
+          const baseIndent = indent || "";
+          const innerIndent = baseIndent + "  ";
+          const locatorIndent = innerIndent + "  ";
+          const protocolIndent = locatorIndent + "  ";
+          const fieldIndent = protocolIndent + "  ";
+
+          // find all udpv4/udpv6 elements and wrap them in locator
+          const locators: string[] = [];
+
+          // match udpv4 elements
+          const udpv4Regex = /<udpv4>([\s\S]*?)<\/udpv4>/g;
+          let udpv4Match;
+          while ((udpv4Match = udpv4Regex.exec(content)) !== null) {
+            const udpv4Inner = udpv4Match[1];
+
+            // Rebuild udpv4 with proper indentation
+            const innerLines = udpv4Inner
+              .trim()
+              .split("\n")
+              .map((line) => line.trim())
+              .filter((line) => line);
+            const formattedInner = innerLines
+              .map((line) => fieldIndent + line)
+              .join("\n");
+            const formattedUdpv4 =
+              protocolIndent +
+              "<udpv4>\n" +
+              formattedInner +
+              "\n" +
+              protocolIndent +
+              "</udpv4>";
+
+            locators.push(
+              innerIndent +
+                "<locator>\n" +
+                formattedUdpv4 +
+                "\n" +
+                innerIndent +
+                "</locator>"
+            );
+          }
+
+          // Match udpv6 elements
+          const udpv6Regex = /<udpv6>([\s\S]*?)<\/udpv6>/g;
+          let udpv6Match;
+          while ((udpv6Match = udpv6Regex.exec(content)) !== null) {
+            const udpv6Inner = udpv6Match[1];
+
+            // Rebuild udpv6 with proper indentation
+            const innerLines = udpv6Inner
+              .trim()
+              .split("\n")
+              .map((line) => line.trim())
+              .filter((line) => line);
+            const formattedInner = innerLines
+              .map((line) => fieldIndent + line)
+              .join("\n");
+            const formattedUdpv6 =
+              protocolIndent +
+              "<udpv6>\n" +
+              formattedInner +
+              "\n" +
+              protocolIndent +
+              "</udpv6>";
+
+            locators.push(
+              innerIndent +
+                "<locator>\n" +
+                formattedUdpv6 +
+                "\n" +
+                innerIndent +
+                "</locator>"
+            );
+          }
+
+          if (locators.length > 0) {
+            return (
+              baseIndent +
+              "<discoveryServersList>\n" +
+              locators.join("\n") +
+              "\n" +
+              baseIndent +
+              "</discoveryServersList>"
+            );
+          }
+        }
+        return match;
+      }
+    );
+
+    // Fix userTransports format - wrap values in transport_id elements
+    xml = xml.replace(
+      /(\s*)<userTransports>([\s\S]*?)<\/userTransports>/g,
+      (match, indent, content) => {
+        // Check if content doesn't already have transport_id elements
+        if (!/<transport_id>/.test(content)) {
+          const baseIndent = indent || "";
+          const innerIndent = baseIndent + "  ";
+
+          const transportIds: string[] = [];
+
+          // Check for array format with numbered elements
+          if (/<\d+>/.test(content)) {
+            const arrayRegex = /<(\d+)>([^<]*)<\/\1>/g;
+            let arrayMatch;
+            while ((arrayMatch = arrayRegex.exec(content)) !== null) {
+              const id = arrayMatch[2].trim();
+              if (id) {
+                transportIds.push(id);
+              }
+            }
+          } else {
+            // Simple value or comma-separated values
+            const trimmedContent = content.trim();
+            if (trimmedContent) {
+              // Split by comma if multiple IDs
+              const ids = trimmedContent
+                .split(",")
+                .map((id: string) => id.trim())
+                .filter((id: string) => id);
+              transportIds.push(...ids);
+            }
+          }
+
+          if (transportIds.length > 0) {
+            const transportElements = transportIds
+              .map((id) => `${innerIndent}<transport_id>${id}</transport_id>`)
+              .join("\n");
+            return `${baseIndent}<userTransports>\n${transportElements}\n${baseIndent}</userTransports>`;
+          }
+        }
+        return match;
+      }
+    );
+
+    // final cleanup: remove excessive blank lines (including those with only spaces)
+    xml = xml.replace(/\n[ \t]*\n[ \t]*\n/g, "\n");
+    // also clean up double blank lines
+    xml = xml.replace(/\n\n+/g, "\n");
+  }
+
   return xml;
+};
+
+const getFieldDefaultValue = (
+  path: string[],
+  key: string,
+  currentValue: any
+): any => {
+  // check if we're in a transport_descriptor context
+  // the path might include profile types or be nested
+  const isTransportDescriptor = path.some(
+    (segment) =>
+      segment === "transport_descriptor" ||
+      segment === "transport_descriptors" ||
+      segment.includes("transport_descriptor")
+  );
+
+  const isParticipant = path.some(
+    (segment) => segment === "participant" || segment.includes("participant")
+  );
+
+  // Check if we're in rtps context within participant
+  const isInRtps = path.some((segment) => segment === "rtps");
+
+  // if we're in rtps context and looking at useBuiltinTransports,
+  // we're likely in a participant profile even if "participant" isn't in the path
+  const isLikelyParticipantRtps = isInRtps && key === "useBuiltinTransports";
+
+  if (isTransportDescriptor) {
+    const transportDefaults = transportSettings.transportDescriptor.default;
+    if (key in transportDefaults) {
+      return (transportDefaults as any)[key];
+    }
+  }
+
+  // Handle participant-specific fields
+  if (isParticipant) {
+    // Check rtps fields
+    if (isInRtps && key in rtpsSettings.default) {
+      return (rtpsSettings.default as any)[key];
+    }
+
+    // Special case for name field in rtps
+    if (key === "name" && isInRtps) {
+      return "Default Domain Participant";
+    }
+  }
+
+  // Default values based on type
+  if (typeof currentValue === "boolean") {
+    // For known boolean fields with true defaults
+    if (
+      key === "useBuiltinTransports" &&
+      (isParticipant || isLikelyParticipantRtps)
+    ) {
+      return true;
+    }
+    //  handling for transport descriptor boolean fields
+    // these fields have true as default regardless of path context
+    if (key === "calculate_crc" || key === "check_crc") {
+      return true;
+    }
+    return false;
+  } else if (typeof currentValue === "number") {
+    return 0;
+  } else if (typeof currentValue === "string") {
+    return "";
+  }
+
+  return null;
 };
 
 export const detectVendor = (content: string): DDSVendor | null => {
@@ -513,9 +1118,9 @@ export const xmlToFormFields = (
   path: string[] = []
 ): FormField[] => {
   const fields: FormField[] = [];
-  
+
   // Handle null or undefined data
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return fields;
   }
 
@@ -537,10 +1142,10 @@ export const xmlToFormFields = (
     const fieldPath = [...currentPath, key];
     const displayKey = key.startsWith("@_") ? key.substring(2) : key;
     const label = displayKey
-          .split(/(?=[A-Z])/)
-          .join(" ")
-          .toLowerCase()
-          .replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+      .split(/(?=[A-Z])/)
+      .join(" ")
+      .toLowerCase()
+      .replace(/(^|\s)\S/g, (l) => l.toUpperCase());
 
     // Special handling for locator fields with empty content
     if (key === "locator" && value === "") {
@@ -629,20 +1234,12 @@ export const xmlToFormFields = (
       // Special handling for userTransports - array of transport_id strings
       if (key === "userTransports") {
         let transportIds: string[] = [];
-        
-        console.log("xmlToFormFields - Processing userTransports:", {
-          key,
-          value,
-          valueType: typeof value,
-          isArray: Array.isArray(value),
-          fieldPath
-        });
-        
+
         // Handle different userTransports structures
         if (Array.isArray(value)) {
           // Direct array of strings
           transportIds = value;
-        } else if (typeof value === 'object' && value !== null) {
+        } else if (typeof value === "object" && value !== null) {
           // Object with transport_id property
           const transportObj = value as any;
           if (transportObj.transport_id) {
@@ -652,16 +1249,10 @@ export const xmlToFormFields = (
               transportIds = [transportObj.transport_id];
             }
           }
-        } else if (typeof value === 'string') {
+        } else if (typeof value === "string") {
           // Single string value
           transportIds = [value];
         }
-        
-        console.log("xmlToFormFields - userTransports result:", {
-          transportIds,
-          transportIdsLength: transportIds.length
-        });
-        
         return {
           name: key,
           label,
@@ -675,20 +1266,20 @@ export const xmlToFormFields = (
       }
 
       // Special handling for Threads container in CycloneDDS
-      if (key === "Threads" && currentPath.some(p => p === "Domain")) {
+      if (key === "Threads" && currentPath.some((p) => p === "Domain")) {
         // Threads is an object that contains Thread array
-        const threadsValue: any = 
-          typeof value === 'object' && value !== null && !Array.isArray(value)
+        const threadsValue: any =
+          typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { Thread: [] };
-            
+
         // Ensure Thread exists as an array
         if (!threadsValue.Thread) {
           threadsValue.Thread = [];
         } else if (!Array.isArray(threadsValue.Thread)) {
           threadsValue.Thread = [threadsValue.Thread];
         }
-        
+
         const fields = xmlToFormFields(threadsValue, fieldPath);
         return {
           name: key,
@@ -801,20 +1392,25 @@ export const xmlToFormFields = (
       }
 
       // Special handling for IgnoredPartitions container in CycloneDDS
-      if (key === "IgnoredPartitions" && currentPath.some(p => p === "Partitioning")) {
+      if (
+        key === "IgnoredPartitions" &&
+        currentPath.some((p) => p === "Partitioning")
+      ) {
         // IgnoredPartitions is an object that contains IgnoredPartition array
-        const ignoredPartitionsValue: any = 
-          typeof value === 'object' && value !== null && !Array.isArray(value)
+        const ignoredPartitionsValue: any =
+          typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { IgnoredPartition: [] };
-            
+
         // Ensure IgnoredPartition exists as an array
         if (!ignoredPartitionsValue.IgnoredPartition) {
           ignoredPartitionsValue.IgnoredPartition = [];
         } else if (!Array.isArray(ignoredPartitionsValue.IgnoredPartition)) {
-          ignoredPartitionsValue.IgnoredPartition = [ignoredPartitionsValue.IgnoredPartition];
+          ignoredPartitionsValue.IgnoredPartition = [
+            ignoredPartitionsValue.IgnoredPartition,
+          ];
         }
-        
+
         const fields = xmlToFormFields(ignoredPartitionsValue, fieldPath);
         return {
           name: key,
@@ -829,20 +1425,25 @@ export const xmlToFormFields = (
       }
 
       // Special handling for NetworkPartitions container in CycloneDDS
-      if (key === "NetworkPartitions" && currentPath.some(p => p === "Partitioning")) {
+      if (
+        key === "NetworkPartitions" &&
+        currentPath.some((p) => p === "Partitioning")
+      ) {
         // NetworkPartitions is an object that contains NetworkPartition array
-        const networkPartitionsValue: any = 
-          typeof value === 'object' && value !== null && !Array.isArray(value)
+        const networkPartitionsValue: any =
+          typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { NetworkPartition: [] };
-            
+
         // Ensure NetworkPartition exists as an array
         if (!networkPartitionsValue.NetworkPartition) {
           networkPartitionsValue.NetworkPartition = [];
         } else if (!Array.isArray(networkPartitionsValue.NetworkPartition)) {
-          networkPartitionsValue.NetworkPartition = [networkPartitionsValue.NetworkPartition];
+          networkPartitionsValue.NetworkPartition = [
+            networkPartitionsValue.NetworkPartition,
+          ];
         }
-        
+
         const fields = xmlToFormFields(networkPartitionsValue, fieldPath);
         return {
           name: key,
@@ -857,20 +1458,25 @@ export const xmlToFormFields = (
       }
 
       // Special handling for PartitionMappings container in CycloneDDS
-      if (key === "PartitionMappings" && currentPath.some(p => p === "Partitioning")) {
+      if (
+        key === "PartitionMappings" &&
+        currentPath.some((p) => p === "Partitioning")
+      ) {
         // PartitionMappings is an object that contains PartitionMapping array
-        const partitionMappingsValue: any = 
-          typeof value === 'object' && value !== null && !Array.isArray(value)
+        const partitionMappingsValue: any =
+          typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { PartitionMapping: [] };
-            
+
         // Ensure PartitionMapping exists as an array
         if (!partitionMappingsValue.PartitionMapping) {
           partitionMappingsValue.PartitionMapping = [];
         } else if (!Array.isArray(partitionMappingsValue.PartitionMapping)) {
-          partitionMappingsValue.PartitionMapping = [partitionMappingsValue.PartitionMapping];
+          partitionMappingsValue.PartitionMapping = [
+            partitionMappingsValue.PartitionMapping,
+          ];
         }
-        
+
         const fields = xmlToFormFields(partitionMappingsValue, fieldPath);
         return {
           name: key,
@@ -973,11 +1579,14 @@ export const xmlToFormFields = (
       }
 
       // Special handling for Library elements in Security section
-      if (key === "Library" && (fieldPath.includes("AccessControl") || 
-                                fieldPath.includes("Authentication") || 
-                                fieldPath.includes("Cryptographic"))) {
+      if (
+        key === "Library" &&
+        (fieldPath.includes("AccessControl") ||
+          fieldPath.includes("Authentication") ||
+          fieldPath.includes("Cryptographic"))
+      ) {
         // Library can have text content and attributes
-        if (typeof value === 'string') {
+        if (typeof value === "string") {
           // Simple string, convert to object structure
           return {
             name: key,
@@ -1010,10 +1619,16 @@ export const xmlToFormFields = (
                 name: "@_initFunction",
                 label: "Init Function",
                 type: "text",
-                value: fieldPath.includes("AccessControl") ? "init_access_control" : 
-                       fieldPath.includes("Authentication") ? "init_authentication" : "init_crypto",
-                defaultValue: fieldPath.includes("AccessControl") ? "init_access_control" : 
-                              fieldPath.includes("Authentication") ? "init_authentication" : "init_crypto",
+                value: fieldPath.includes("AccessControl")
+                  ? "init_access_control"
+                  : fieldPath.includes("Authentication")
+                  ? "init_authentication"
+                  : "init_crypto",
+                defaultValue: fieldPath.includes("AccessControl")
+                  ? "init_access_control"
+                  : fieldPath.includes("Authentication")
+                  ? "init_authentication"
+                  : "init_crypto",
                 required: false,
                 path: [...fieldPath, "@_initFunction"],
               },
@@ -1021,21 +1636,27 @@ export const xmlToFormFields = (
                 name: "@_finalizeFunction",
                 label: "Finalize Function",
                 type: "text",
-                value: fieldPath.includes("AccessControl") ? "finalize_access_control" : 
-                       fieldPath.includes("Authentication") ? "finalize_authentication" : "finalize_crypto",
-                defaultValue: fieldPath.includes("AccessControl") ? "finalize_access_control" : 
-                              fieldPath.includes("Authentication") ? "finalize_authentication" : "finalize_crypto",
+                value: fieldPath.includes("AccessControl")
+                  ? "finalize_access_control"
+                  : fieldPath.includes("Authentication")
+                  ? "finalize_authentication"
+                  : "finalize_crypto",
+                defaultValue: fieldPath.includes("AccessControl")
+                  ? "finalize_access_control"
+                  : fieldPath.includes("Authentication")
+                  ? "finalize_authentication"
+                  : "finalize_crypto",
                 required: false,
                 path: [...fieldPath, "@_finalizeFunction"],
               },
             ],
           };
-        } else if (typeof value === 'object' && value !== null) {
+        } else if (typeof value === "object" && value !== null) {
           // Already an object, process normally but ensure #text field is included
           const fields = xmlToFormFields(value, fieldPath);
-          
+
           // Find or add #text field
-          let textField = fields.find(f => f.name === '#text');
+          let textField = fields.find((f) => f.name === "#text");
           if (!textField) {
             textField = {
               name: "#text",
@@ -1050,7 +1671,7 @@ export const xmlToFormFields = (
           } else {
             textField.label = "Library Name"; // Update label
           }
-          
+
           return {
             name: key,
             label,
@@ -1064,7 +1685,7 @@ export const xmlToFormFields = (
         }
       }
 
-      // Special handling for discoveryServersList - contains locator objects
+      // handling for discoveryServersList - contains locator objects
       if (key === "discoveryServersList") {
         // Create a simpler structure - each item is a locator
         const itemTemplate = {
@@ -1073,7 +1694,7 @@ export const xmlToFormFields = (
             port: 0,
           },
         };
-        // Don't include array index in the field path template
+        // don't include array index in the field path template
         const fields = xmlToFormFields(itemTemplate, []);
         return {
           name: key,
@@ -1087,7 +1708,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for other locator lists
+      //  handling for other locator lists
       if (
         key === "metatrafficUnicastLocatorList" ||
         key === "metatrafficMulticastLocatorList" ||
@@ -1095,7 +1716,7 @@ export const xmlToFormFields = (
         key === "defaultUnicastLocatorList" ||
         key === "defaultMulticastLocatorList"
       ) {
-        // These lists contain locator elements
+        // these lists contain locator elements
         const itemTemplate = {
           locator: {
             udpv4: {
@@ -1104,7 +1725,7 @@ export const xmlToFormFields = (
             },
           },
         };
-        // Don't include array index in the field path template
+        // don't include array index in the field path template
         const fields = xmlToFormFields(itemTemplate, []);
         return {
           name: key,
@@ -1133,7 +1754,7 @@ export const xmlToFormFields = (
           : [],
       };
     } else if (typeof value === "object" && value !== null) {
-      // Special handling for locator objects with empty string value
+      //  handling for locator objects with empty string value
       if (key === "locator" && Object.keys(value).length === 0) {
         // Provide template fields for empty locators
         const locatorTemplate = {
@@ -1170,32 +1791,39 @@ export const xmlToFormFields = (
       }
       return null;
     } else if (typeof value === "boolean") {
+      const defaultValue = getFieldDefaultValue(currentPath, key, value);
       return {
         name: key,
         label,
         type: "boolean",
         value: value,
-        defaultValue: false,
+        defaultValue: defaultValue,
         required: false,
         path: fieldPath,
       };
     } else if (value !== "" && !isNaN(Number(value))) {
+      const defaultValue = getFieldDefaultValue(
+        currentPath,
+        key,
+        Number(value)
+      );
       return {
         name: key,
         label,
         type: "number",
         value: Number(value),
-        defaultValue: 0,
+        defaultValue: defaultValue,
         required: false,
         path: fieldPath,
       };
     } else {
+      const defaultValue = getFieldDefaultValue(currentPath, key, value || "");
       return {
         name: key,
         label,
         type: "text",
         value: value || "",
-        defaultValue: "",
+        defaultValue: defaultValue,
         required: false,
         path: fieldPath,
       };
@@ -1222,17 +1850,6 @@ export const formFieldsToXML = (
   const result: any = {};
 
   fields.forEach((field) => {
-    // Debug log for Domain field
-    if (field.name === "Domain") {
-      console.log("formFieldsToXML - Processing Domain field:", {
-        fieldName: field.name,
-        fieldType: field.type,
-        fieldValue: field.value,
-        hasThreads: field.value?.Threads,
-        fieldFields: field.fields?.map(f => ({ name: f.name, type: f.type, hasValue: !!f.value }))
-      });
-    }
-    
     if (
       field.value === "" ||
       field.value === null ||
@@ -1242,13 +1859,13 @@ export const formFieldsToXML = (
     }
 
     if (excludeDefaults) {
-      // Check if user has explicitly forced this field to be included
+      // check if user has explicitly forced this field to be included
       if (field.forceInclude) {
-        // Don't exclude this field, user wants it included
+        // don't exclude this field, user wants it included
       } else {
-        // Determine if we should exclude this field
+        // determine if we should exclude this field
         if (originalUploadedData) {
-          // Uploaded file scenario: exclude defaults that weren't in uploaded data
+          // uploaded file scenario: exclude defaults that weren't in uploaded data
           const wasInUploadedData = hasValueInUploadedXMLData(
             field.path,
             originalUploadedData
@@ -1301,67 +1918,44 @@ export const formFieldsToXML = (
     }
 
     if (field.type === "array") {
-      // Debug log for array fields
-      if (field.name === "Thread") {
-        console.log("formFieldsToXML - Array field Thread:", {
-          fieldName: field.name,
-          fieldValue: field.value,
-          fieldType: field.type,
-          hasValue: Array.isArray(field.value),
-          valueLength: field.value?.length,
-          forceInclude: field.forceInclude,
-          excludeDefaults: excludeDefaults
-        });
-      }
-      
       if (
         Array.isArray(field.value) &&
         (field.value.length > 0 || field.forceInclude)
       ) {
         if (field.fields && field.fields.length > 0) {
           const mappedItems = field.value
-            .map((item: any, index: number) => {
-              // Debug logging for Thread items
-              if (field.name === "Thread") {
-                console.log("formFieldsToXML - Processing Thread item:", {
-                  index: index,
-                  item: item,
-                  fieldName: field.name,
-                  fieldFields: field.fields
-                });
-              }
-              
+            .map((item: any, _index: number) => {
               const itemFields = field.fields!.map((subField) => {
                 let fieldValue = item[subField.name];
-                
+
                 // For nested objects, we need to handle them recursively
-                if (subField.type === 'object' && subField.fields && fieldValue) {
-                  // Debug for Scheduling field
-                  if (subField.name === "Scheduling") {
-                    console.log("formFieldsToXML - Processing Scheduling:", {
-                      fieldValue: fieldValue,
-                      subFieldFields: subField.fields
-                    });
-                  }
-                  
+                if (
+                  subField.type === "object" &&
+                  subField.fields &&
+                  fieldValue
+                ) {
                   return {
                     ...subField,
                     value: fieldValue,
-                    fields: subField.fields.map(nestedField => ({
+                    fields: subField.fields.map((nestedField) => ({
                       ...nestedField,
-                      value: fieldValue[nestedField.name] !== undefined 
-                        ? fieldValue[nestedField.name] 
-                        : nestedField.defaultValue
-                    }))
+                      value:
+                        fieldValue[nestedField.name] !== undefined
+                          ? fieldValue[nestedField.name]
+                          : nestedField.defaultValue,
+                    })),
                   };
                 }
-                
+
                 return {
                   ...subField,
-                  value: fieldValue !== undefined ? fieldValue : subField.defaultValue,
+                  value:
+                    fieldValue !== undefined
+                      ? fieldValue
+                      : subField.defaultValue,
                 };
               });
-              
+
               const xmlResult = formFieldsToXML(
                 itemFields,
                 excludeDefaults,
@@ -1369,50 +1963,16 @@ export const formFieldsToXML = (
                 originalUploadedData,
                 originalFields
               );
-              
-              // Debug log for Thread item result
-              if (field.name === "Thread") {
-                console.log("formFieldsToXML - Thread item XML result:", {
-                  index: index,
-                  xmlResult: xmlResult,
-                  hasKeys: Object.keys(xmlResult).length > 0
-                });
-              }
-              
+
               return xmlResult;
             })
             .filter((item: any) => {
-              // For Thread items, don't filter out if they have any properties
-              if (field.name === "Thread") {
-                const hasContent = Object.keys(item).length > 0;
-                console.log("formFieldsToXML - Thread filter check:", {
-                  item: item,
-                  hasContent: hasContent,
-                  willKeep: hasContent
-                });
-                return hasContent;
-              }
               return Object.keys(item).length > 0;
             }); // Filter out empty objects
 
           if (mappedItems.length > 0 || field.forceInclude) {
             result[field.name] = mappedItems;
-            
-            // Debug log for Thread array result
-            if (field.name === "Thread") {
-              console.log("formFieldsToXML - Thread array result:", {
-                fieldName: field.name,
-                mappedItemsLength: mappedItems.length,
-                mappedItems: mappedItems,
-                result: result[field.name]
-              });
-            }
           } else if (field.name === "Thread") {
-            console.log("formFieldsToXML - Thread array SKIPPED (no items):", {
-              fieldName: field.name,
-              mappedItemsLength: mappedItems.length,
-              forceInclude: field.forceInclude
-            });
           }
         } else {
           // For simple arrays (not objects)
@@ -1420,11 +1980,11 @@ export const formFieldsToXML = (
             (item: any) => item !== null && item !== undefined && item !== ""
           );
           if (nonEmptyItems.length > 0 || field.forceInclude) {
-            // Special handling for userTransports in FastDDS
+            //  handling for userTransports in FastDDS
             if (field.name === "userTransports" && vendor === "fastdds") {
               // Convert array of strings to proper XML structure
               result[field.name] = {
-                transport_id: nonEmptyItems
+                transport_id: nonEmptyItems,
               };
             } else {
               result[field.name] = nonEmptyItems;
@@ -1433,39 +1993,30 @@ export const formFieldsToXML = (
         }
       }
     } else if (field.type === "object" && field.fields) {
-      // Debug logging for Threads object
-      if (field.name === "Threads") {
-        console.log("formFieldsToXML - Processing Threads object:", {
-          fieldValue: field.value,
-          fieldFields: field.fields
-        });
-      }
-      
       // Initialize childFields
       let childFields = field.fields;
-      
+
       // Special handling for Threads object which contains Thread array
       if (field.name === "Threads") {
         // The Threads object should get its Thread array value from the child field
-        const threadArrayField = field.fields?.find(f => f.name === "Thread");
-        if (threadArrayField && threadArrayField.value && threadArrayField.value.length > 0) {
-          console.log("formFieldsToXML - Fixing Threads/Thread structure:", {
-            threadArrayFieldValue: threadArrayField.value,
-            originalFieldValue: field.value
-          });
-          
+        const threadArrayField = field.fields?.find((f) => f.name === "Thread");
+        if (
+          threadArrayField &&
+          threadArrayField.value &&
+          threadArrayField.value.length > 0
+        ) {
           // Use the Thread field's value directly, not from the Threads object
           childFields = field.fields.map((childField) => {
             return {
               ...childField,
-              forceInclude: field.forceInclude && excludeDefaults
+              forceInclude: field.forceInclude && excludeDefaults,
             };
           });
         } else {
           childFields = field.fields.map((childField) => {
             return {
               ...childField,
-              forceInclude: field.forceInclude && excludeDefaults
+              forceInclude: field.forceInclude && excludeDefaults,
             };
           });
         }
@@ -1486,26 +2037,40 @@ export const formFieldsToXML = (
       );
 
       // Special handling for Library elements in Security
-      if (field.name === "Library" && (field.path.includes("AccessControl") || 
-                                       field.path.includes("Authentication") || 
-                                       field.path.includes("Cryptographic"))) {
+      if (
+        field.name === "Library" &&
+        (field.path.includes("AccessControl") ||
+          field.path.includes("Authentication") ||
+          field.path.includes("Cryptographic"))
+      ) {
         // Check if Library has any non-default attributes
         const hasPath = subResult["@_path"] && subResult["@_path"] !== "";
-        const defaultInit = field.path.includes("AccessControl") ? "init_access_control" :
-                           field.path.includes("Authentication") ? "init_authentication" : "init_crypto";
-        const defaultFinalize = field.path.includes("AccessControl") ? "finalize_access_control" :
-                               field.path.includes("Authentication") ? "finalize_authentication" : "finalize_crypto";
-        
-        const hasNonDefaultInit = subResult["@_initFunction"] && subResult["@_initFunction"] !== defaultInit;
-        const hasNonDefaultFinalize = subResult["@_finalizeFunction"] && subResult["@_finalizeFunction"] !== defaultFinalize;
-        
+        const defaultInit = field.path.includes("AccessControl")
+          ? "init_access_control"
+          : field.path.includes("Authentication")
+          ? "init_authentication"
+          : "init_crypto";
+        const defaultFinalize = field.path.includes("AccessControl")
+          ? "finalize_access_control"
+          : field.path.includes("Authentication")
+          ? "finalize_authentication"
+          : "finalize_crypto";
+
+        const hasNonDefaultInit =
+          subResult["@_initFunction"] &&
+          subResult["@_initFunction"] !== defaultInit;
+        const hasNonDefaultFinalize =
+          subResult["@_finalizeFunction"] &&
+          subResult["@_finalizeFunction"] !== defaultFinalize;
+
         // Include Library if any attribute is non-default
         if (hasPath || hasNonDefaultInit || hasNonDefaultFinalize) {
           // Include all attributes when Library is present
           result[field.name] = {
             "@_path": subResult["@_path"] || "",
             "@_initFunction": subResult["@_initFunction"] || defaultInit,
-            "@_finalizeFunction": subResult["@_finalizeFunction"] || defaultFinalize
+            "@_finalizeFunction":
+              subResult["@_finalizeFunction"] || defaultFinalize,
           };
         }
         // Otherwise, don't include the Library field at all
@@ -1520,40 +2085,38 @@ export const formFieldsToXML = (
         // This is an empty locator list - output the special format
         result[field.name] = { locator: {} };
       } else if (Object.keys(subResult).length > 0 || field.forceInclude) {
-        // Special check for Security sections that only contain empty Library
-        if ((field.name === "AccessControl" || field.name === "Authentication" || field.name === "Cryptographic") &&
-            Object.keys(subResult).length === 0) {
-          // Don't include empty security sections
+        //  check for Security sections that only contain empty Library
+        if (
+          (field.name === "AccessControl" ||
+            field.name === "Authentication" ||
+            field.name === "Cryptographic") &&
+          Object.keys(subResult).length === 0
+        ) {
           return;
         }
-        
-        // Special check for Security object that only contains empty subsections
+
+        //  check for Security object that only contains empty subsections
         if (field.name === "Security") {
-          const hasContent = Object.keys(subResult).length > 0 && 
-                           Object.values(subResult).some(val => val !== null && val !== undefined);
+          const hasContent =
+            Object.keys(subResult).length > 0 &&
+            Object.values(subResult).some(
+              (val) => val !== null && val !== undefined
+            );
           if (!hasContent) {
-            // Don't include empty Security section
             return;
           }
         }
-        
+
         result[field.name] = subResult;
-        
-        // Debug log for Threads object result
-        if (field.name === "Threads") {
-          console.log("formFieldsToXML - Threads object result:", {
-            fieldName: field.name,
-            subResult: subResult,
-            hasThread: 'Thread' in subResult,
-            threadValue: subResult.Thread
-          });
-        }
       } else {
-        // Special case: For Threads, check if the Thread field has values
+        // for Threads, check if the Thread field has values
         if (field.name === "Threads") {
-          const threadField = field.fields?.find(f => f.name === "Thread");
-          if (threadField && threadField.value && threadField.value.length > 0) {
-            console.log("formFieldsToXML - Threads object has Thread values, including anyway");
+          const threadField = field.fields?.find((f) => f.name === "Thread");
+          if (
+            threadField &&
+            threadField.value &&
+            threadField.value.length > 0
+          ) {
             // Process it again without excludeDefaults to ensure Thread is included
             const forceIncludeResult = formFieldsToXML(
               field.fields || [],
@@ -1565,18 +2128,11 @@ export const formFieldsToXML = (
             if (Object.keys(forceIncludeResult).length > 0) {
               result[field.name] = forceIncludeResult;
             }
-          } else {
-            console.log("formFieldsToXML - Threads object SKIPPED (empty):", {
-              fieldName: field.name,
-              subResultKeys: Object.keys(subResult),
-              forceInclude: field.forceInclude,
-              threadFieldValue: threadField?.value
-            });
           }
         }
       }
     } else {
-      // Special handling for empty locator in locator lists
+      //  handling for empty locator in locator lists
       if (
         field.name === "locator" &&
         field.value === "" &&
@@ -1627,33 +2183,27 @@ export const mergeUploadedDataIntoSchema = (
   const addMissingFields = (target: any, schema: any, path: string[] = []) => {
     Object.keys(schema).forEach((key) => {
       const currentPath = [...path, key];
-      
+
       if (!target.hasOwnProperty(key)) {
         // Field exists in schema but not in uploaded data
         if (Array.isArray(schema[key]) && schema[key].length === 0) {
-          // Don't add empty arrays from schema
-          if (key === "userTransports") {
-            console.log("mergeUploadedDataIntoSchema - skipping empty userTransports from schema");
-          }
         } else {
           // Add the schema field
           target[key] = JSON.parse(JSON.stringify(schema[key]));
         }
-      } else if (typeof target[key] === "object" && !Array.isArray(target[key]) && target[key] !== null) {
+      } else if (
+        typeof target[key] === "object" &&
+        !Array.isArray(target[key]) &&
+        target[key] !== null
+      ) {
         // Recursively add missing fields to nested objects
-        if (typeof schema[key] === "object" && !Array.isArray(schema[key]) && schema[key] !== null) {
+        if (
+          typeof schema[key] === "object" &&
+          !Array.isArray(schema[key]) &&
+          schema[key] !== null
+        ) {
           addMissingFields(target[key], schema[key], currentPath);
         }
-      }
-      
-      // Debug logging for userTransports
-      if (key === "userTransports") {
-        console.log("mergeUploadedDataIntoSchema - userTransports after merge:", {
-          key,
-          targetValue: target[key],
-          schemaValue: schema[key],
-          currentPath
-        });
       }
     });
   };
@@ -1681,7 +2231,6 @@ export const isInUploadedData = (
   return true;
 };
 
-// Helper function to check if a value exists in the original uploaded XML data
 function hasValueInUploadedXMLData(path: string[], uploadedData: any): boolean {
   if (!uploadedData || !Array.isArray(path) || path.length === 0) {
     return false;
@@ -1690,13 +2239,13 @@ function hasValueInUploadedXMLData(path: string[], uploadedData: any): boolean {
   let current = uploadedData;
   for (const key of path) {
     if (current && typeof current === "object") {
-      // Handle XML attributes (keys starting with @_)
+      // handle XML attributes (keys starting with @_)
       if (key.startsWith("@_") && key in current) {
         current = current[key];
       } else if (key in current) {
         current = current[key];
       } else {
-        // Try to find the key case-insensitively for XML
+        // try to find the key case-insensitively for XML
         const actualKey = Object.keys(current).find(
           (k) => k.toLowerCase() === key.toLowerCase() || k === key
         );
@@ -1714,7 +2263,6 @@ function hasValueInUploadedXMLData(path: string[], uploadedData: any): boolean {
   return current !== undefined;
 }
 
-// Get the appropriate schema based on vendor
 export const getSchemaForVendor = (vendor: DDSVendor): any => {
   switch (vendor) {
     case "cyclonedds":
@@ -1722,8 +2270,7 @@ export const getSchemaForVendor = (vendor: DDSVendor): any => {
     case "fastdds":
       return fastDDSSchema;
     case "zenoh":
-      // For Zenoh, we'll need to import and return the schema
-      return {}; // Placeholder - will be handled differently
+      return {};
     default:
       return {};
   }

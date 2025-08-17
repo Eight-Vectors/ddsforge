@@ -164,15 +164,6 @@ function App() {
   };
 
   const handleFieldChange = (path: string[], value: any) => {
-    // Debug logging for Thread/Scheduling fields
-    if (path.includes("Scheduling") || path.includes("Thread")) {
-      console.log("App handleFieldChange:", {
-        path: path,
-        value: value,
-        pathString: path.join(" > "),
-      });
-    }
-
     const updateField = (
       fields: FormField[],
       targetPath: string[],
@@ -196,15 +187,6 @@ function App() {
             const arrayIndex = parseInt(targetPath[field.path.length]);
             if (!isNaN(arrayIndex) && field.value && field.value[arrayIndex]) {
               const itemPath = targetPath.slice(field.path.length + 1); // Skip index
-
-              console.log("Special Thread array handler:", {
-                fieldPath: field.path,
-                targetPath: targetPath,
-                arrayIndex: arrayIndex,
-                itemPath: itemPath,
-                currentThreadItem: field.value[arrayIndex],
-                newValue: newValue,
-              });
 
               if (itemPath.length === 0) {
                 // Direct update to Thread item
@@ -231,12 +213,6 @@ function App() {
                 // Set the value
                 current[itemPath[itemPath.length - 1]] = newValue;
 
-                console.log("Updated Thread array with special handler:", {
-                  newThreadItem: newArray[arrayIndex],
-                  specificField: itemPath.join("."),
-                  newValue: newValue,
-                });
-
                 return { ...field, value: newArray };
               }
             }
@@ -254,18 +230,6 @@ function App() {
           if (pathMatches && targetPath.length > field.path.length) {
             const arrayIndex = parseInt(targetPath[field.path.length]);
             if (!isNaN(arrayIndex) && arrayIndex < field.value.length) {
-              // Debug logging for Threads
-              if (field.path.includes("Thread")) {
-                console.log("Updating array field:", {
-                  fieldPath: field.path,
-                  targetPath: targetPath,
-                  arrayIndex: arrayIndex,
-                  itemPath: targetPath.slice(field.path.length + 1),
-                  currentValue: field.value[arrayIndex],
-                  newValue: newValue,
-                });
-              }
-
               // This is updating a field within an array item
               const itemPath = targetPath.slice(field.path.length + 1);
               if (itemPath.length === 0) {
@@ -288,14 +252,6 @@ function App() {
 
                 // Set the value
                 current[itemPath[itemPath.length - 1]] = newValue;
-
-                if (field.path.includes("Thread")) {
-                  console.log("Updated array:", {
-                    newItem: newArray[arrayIndex],
-                    specificField: itemPath.join("."),
-                    newValue: newValue,
-                  });
-                }
 
                 return { ...field, value: newArray };
               }
@@ -323,15 +279,6 @@ function App() {
     // This is crucial for nested updates in arrays
     const forceUpdate = JSON.parse(JSON.stringify(updatedFields));
     setFields(forceUpdate);
-
-    // Debug log to verify the update
-    if (path.includes("Scheduling") || path.includes("Thread")) {
-      console.log("Setting fields with new value:", {
-        path: path,
-        value: value,
-        updatedFields: forceUpdate,
-      });
-    }
 
     if (vendor) {
       try {
@@ -401,22 +348,6 @@ function App() {
       );
       return buildJSON(jsonData, true);
     } else {
-      // Debug log to check Thread fields before XML generation
-      const domainField = fields.find((f) => f.name === "Domain");
-      const threadField = domainField?.fields?.find(
-        (f) => f.name === "Threads"
-      );
-      if (threadField) {
-        console.log("Thread field before XML generation:", {
-          threadsField: threadField,
-          threadValue: threadField.value,
-          threadArrayField: threadField.fields?.find(
-            (f) => f.name === "Thread"
-          ),
-          domainValue: domainField?.value,
-        });
-      }
-
       const xmlData = formFieldsToXML(
         fields,
         excludeDefaults,
@@ -1161,7 +1092,7 @@ function App() {
                   className="bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Save {vendor === "zenoh" ? "Config" : "XML"}
+                  Download {vendor === "zenoh" ? "Config" : "XML"}
                 </Button>
               </div>
             </div>

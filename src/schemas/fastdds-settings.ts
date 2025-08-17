@@ -53,7 +53,6 @@ export const fastDDSSettings = {
   },
 };
 
-// Export individual setting groups for easier access
 export const qosSettings = {
   flowControllers: {
     schedulerPolicy: {
@@ -315,7 +314,7 @@ export const transportSettings = {
       TCPv4: ["wan_addr"],
     },
   },
-  // Interface configuration
+  // interface configuration
   interfacesConfiguration: {
     default: {
       allowlist: [],
@@ -332,7 +331,7 @@ export const transportSettings = {
       },
     },
   },
-  // Interface whitelist configuration
+  // interface whitelist configuration
   interfaceWhiteList: {
     default: {
       address: "",
@@ -446,7 +445,7 @@ export const rtpsSettings = {
     "security_log_thread",
   ],
 };
-// UserData structure
+// userData structure
 export const userDataSettings = {
   default: {
     value: "",
@@ -552,7 +551,7 @@ export const discoverySettings = {
         "The period for the DomainParticipant to send its discovery messages",
     },
   },
-  // Default durations for various discovery timings
+  // default durations for various discovery timings
   defaultDurations: {
     leaseDuration: {
       sec: 20,
@@ -579,7 +578,8 @@ export const discoverySettings = {
     ],
   },
   discoveryServersList: {
-    description: "List of locators for discovery servers. Used when discoveryProtocol is set to SERVER or CLIENT",
+    description:
+      "List of locators for discovery servers. Used when discoveryProtocol is set to SERVER or CLIENT",
     type: "List<Locator>",
     default: [],
   },
@@ -704,7 +704,7 @@ export const networkSettings = {
     },
   },
   locatorKinds: ["udpv4", "udpv6", "tcpv4", "tcpv6"],
-  // Common locator list types used in FastDDS
+  // common locator list types used in FastDDS
   locatorListTypes: [
     "defaultUnicastLocatorList",
     "defaultMulticastLocatorList",
@@ -714,7 +714,7 @@ export const networkSettings = {
     "metatrafficMulticastLocatorList",
     "initialPeersList",
   ],
-  // External locator settings
+  // external locator settings
   externalLocator: {
     default: {
       externality: 1,
@@ -750,7 +750,7 @@ export const networkSettings = {
       },
     },
   },
-  // External locator list types
+  // external locator list types
   externalLocatorListTypes: ["default_external_unicast_locators"],
 };
 export const securitySettings = {};

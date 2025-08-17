@@ -1,9 +1,9 @@
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser } from "fast-xml-parser";
 
 export const parseXMLInBrowser = (xmlString: string): any => {
   const parser = new XMLParser({
     ignoreAttributes: false,
-    attributeNamePrefix: '@_',
+    attributeNamePrefix: "@_",
     parseAttributeValue: true,
     trimValues: true,
     parseTagValue: true,
@@ -11,13 +11,12 @@ export const parseXMLInBrowser = (xmlString: string): any => {
     removeNSPrefix: false,
     processEntities: true,
     preserveOrder: false,
-    alwaysCreateTextNode: false
+    alwaysCreateTextNode: false,
   });
-  
+
   try {
     return parser.parse(xmlString);
   } catch (error) {
-    throw new Error('XML parsing error: ' + (error as Error).message);
+    throw new Error("XML parsing error: " + (error as Error).message);
   }
 };
-

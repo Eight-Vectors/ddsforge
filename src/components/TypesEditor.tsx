@@ -13,16 +13,10 @@ import {
 } from "./ui/select";
 
 export interface TypeDefinition {
-  kind:
-    | "struct"
-    | "enum"
-    | "union"
-    | "typedef" // Changed from alias
-    | "bitmask"
-    | "bitset";
+  kind: "struct" | "enum" | "union" | "typedef" | "bitmask" | "bitset";
   name: string;
   baseType?: string;
-  // For struct
+  // for struct
   member?: Array<{
     name: string;
     type: string;
@@ -32,18 +26,18 @@ export interface TypeDefinition {
     key_type?: string; // For map members
     mapMaxLength?: number | string; // For map members
   }>;
-  // For enum - using attributes
+  // for enum - using attributes
   enumerator?: Array<{
     name: string;
     value?: number;
   }>;
-  // For bitmask
+  // for bitmask
   bit_value?: Array<{
     name: string;
     position?: number;
   }>;
   bit_bound?: number;
-  // For union
+  // for union
   discriminator?: {
     type: string;
   };
@@ -57,10 +51,10 @@ export interface TypeDefinition {
       nonBasicTypeName?: string;
     };
   }>;
-  // For typedef (alias)
-  type?: string; // For typedef
-  nonBasicTypeName?: string; // For typedef with nonBasic type
-  // For bitset
+  // for typedef (alias)
+  type?: string; // for typedef
+  nonBasicTypeName?: string;
+  // for bitset
   bitfield?: Array<{
     name?: string;
     bit_bound: number;
