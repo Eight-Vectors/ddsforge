@@ -1,69 +1,163 @@
-# React + TypeScript + Vite
+# DDS XML Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, web-based configuration editor for Data Distribution Service (DDS) implementations. Create, edit, and validate DDS configuration files with an intuitive user interface.
 
-Currently, two official plugins are available:
+![DDS XML Editor](public/logo.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## Expanding the ESLint configuration
+### Supported DDS Implementations
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **FastDDS** (eProsima Fast DDS) - Complete profile and settings management
+- **CycloneDX** (Eclipse CycloneDDS) - Domain and transport
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Core Functionality
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+- 🚀 **Create from Scratch** - Start with default configurations for any supported DDS vendor
+- 📁 **Import Existing** - Upload and edit existing XML/JSON configuration files
+- ✏️ **Visual Editor** - Form-based editing with real-time validation
+- 👀 **Live Preview** - Preview generated XML/JSON before downloading
+- ✅ **Validation** - Built-in schema validation for all supported formats
+- 💾 **Export** - Download your configurations as properly formatted files
+- 🔄 **Reset Functionality** - Revert to original or default configurations
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Advanced Features
+
+- **Split-screen Interface** - Efficient editing with two-column layout
+- **Drag & Drop Upload** - Easy file import with visual feedback
+- **Real-time Validation** - Immediate feedback on configuration errors
+- **Modified Field Highlighting** - Visual indicators for changed values
+- **Minimal Output Mode** - Export only non-default values for cleaner configs
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+1. Install dependencies:
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Start the development server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+3. Open your browser to `http://localhost:5173`
+
+### Building for Production
+
+```bash
+npm run build
+```
+
+The built files will be in the `dist` directory.
+
+## Usage
+
+### Creating a New Configuration
+
+1. Choose your DDS vendor (FastDDS, CycloneDDS)
+2. Fill in the configuration parameters using the form interface
+3. Preview your configuration to ensure it's correct
+4. Download the generated XML/JSON file
+
+### Editing an Existing Configuration
+
+1. Click "Upload Existing Configuration"
+2. Drag and drop your XML/JSON file or click to browse
+3. Edit the loaded configuration using the visual form
+4. Preview and download your updated configuration
+
+### Configuration Validation
+
+- Real-time validation as you type
+- Schema-based validation for all supported DDS vendors
+- Clear error messages and guidance
+- Preview mode with validation results
+
+## Project Structure
+
+```
+src/
+├── components/          # React components
+│   ├── ui/             # Reusable UI components (Radix UI)
+│   ├── FastDDSProfileEditor.tsx
+│   ├── FastDDSProfileCreator.tsx
+│   ├── FormField.tsx
+│   ├── FileUpload.tsx
+│   └── ...
+├── schemas/            # DDS schema definitions
+│   ├── fastdds-schema.ts
+│   ├── cyclonedds-schema.ts
+│   └── zenoh-schema.ts
+├── utils/              # Utility functions
+│   ├── xmlParser.ts    # XML parsing and generation
+│   ├── jsonParser.ts   # JSON parsing for Zenoh
+│   ├── xmlValidator.ts # Validation logic
+│   └── ...
+├── types/              # TypeScript type definitions
+└── App.tsx            # Main application component
+```
+
+## Technology Stack
+
+- **Frontend Framework**: React 19 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **UI Components**: Radix UI primitives
+- **XML Processing**: fast-xml-parser
+- **File Handling**: react-dropzone
+- **Icons**: Lucide React
+
+## Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Code Style
+
+This project uses ESLint with TypeScript rules for code quality and consistency.
+
+## Supported File Formats
+
+### FastDDS
+
+- **Input**: XML files with `<dds>` root element
+- **Output**: FastDDS-compatible XML configuration
+
+### CycloneDDS
+
+- **Input**: XML files with `<CycloneDDS>` or `<cyclonedds>` root element
+- **Output**: CycloneDDS-compatible XML configuration
+
+<!-- ## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request -->
+
+## License
+
+This project is proprietary software.
+
+## About
+
+Developed by [EightVectors](https://www.eightvectors.com/) - Specialists in DDS and real-time communication systems.
+
+---
+
+**Copyright © 2025 EightVectors. All rights reserved.**
