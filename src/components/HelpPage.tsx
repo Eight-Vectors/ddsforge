@@ -9,6 +9,7 @@ import {
   Globe,
   Lightbulb,
   Mail,
+  MessageSquare,
   Settings,
   Upload,
   Zap,
@@ -310,19 +311,22 @@ export function HelpPage({ onBack }: HelpPageProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-slate-700">
-                    For feature requests, bug reports, or vendor support
-                    requests: write to{" "}
-                    <a
-                      href="mailto:support@eightvectors.com"
-                      className="text-blue-600 hover:text-blue-800 underline font-medium"
-                    >
-                      support@eightvectors.com
-                    </a>
-                  </p>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-slate-700">
+                      For feature requests, bug reports, or help, please go to{" "}
+                      <a
+                        href="https://github.com/Eight-Vectors/ddsforge/discussions"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        GitHub Discussions
+                      </a>
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>

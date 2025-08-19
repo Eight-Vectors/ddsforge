@@ -1,5 +1,5 @@
-import { FastDDSProfileCreator } from "./FastDDSProfileCreator";
-import { FastDDSProfileUploader } from "./FastDDSProfileUploader";
+import FastDDSProfileCreator from "./FastDDSProfileCreator";
+import FastDDSProfileUploader from "./FastDDSProfileUploader";
 
 interface FastDDSProfileEditorProps {
   uploadedData?: any;

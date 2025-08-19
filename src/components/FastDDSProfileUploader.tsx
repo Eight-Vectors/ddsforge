@@ -26,7 +26,7 @@ interface Profile {
   isDefault: boolean;
 }
 
-export function FastDDSProfileUploader({
+export default function FastDDSProfileUploader({
   uploadedData,
   onXMLGenerate,
 }: FastDDSProfileEditorProps) {
@@ -533,7 +533,20 @@ export function FastDDSProfileUploader({
       }
     });
 
-    profilesByType.forEach((profileList, type) => {
+    // Process profiles in the required XML schema order: transport_descriptors MUST come first
+    const orderedTypes = [
+      "transport_descriptor",
+      "domainparticipant_factory",
+      "participant",
+      "data_writer",
+      "data_reader",
+      "topic",
+    ];
+
+    orderedTypes.forEach((type) => {
+      const profileList = profilesByType.get(type);
+      if (!profileList || profileList.length === 0) return;
+
       if (!data.profiles) data.profiles = {};
 
       if (type === "transport_descriptor") {

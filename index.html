@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DDS FORGE</title>
+    <script>
+      if (window.location.hostname !== "localhost") {
+        const script = document.createElement("script");
+        script.defer = true;
+        script.src = "https://cloud.umami.is/script.js";
+        script.setAttribute(
+          "data-website-id",
+          "5d6475b7-3575-4685-964f-b942ac6b89c6"
+        );
+        document.head.appendChild(script);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

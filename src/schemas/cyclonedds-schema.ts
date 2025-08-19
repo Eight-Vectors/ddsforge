@@ -53,7 +53,7 @@ export const cycloneDDSSchema = {
         EntityAutoNaming: false,
         ExternalNetworkAddress: "auto",
         ExternalNetworkMask: "0.0.0.0",
-        FragmentSize: 1344,
+        FragmentSize: "1344B",
         Interfaces: {
           NetworkInterface: [], // Array of network interface configurations
         },

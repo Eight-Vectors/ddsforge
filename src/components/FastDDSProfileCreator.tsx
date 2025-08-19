@@ -20,7 +20,7 @@ interface FastDDSProfileCreatorProps {
   onXMLGenerate: (xml: string) => void;
 }
 
-export function FastDDSProfileCreator({
+export default function FastDDSProfileCreator({
   onXMLGenerate,
 }: FastDDSProfileCreatorProps) {
   // always exclude defaults - this is the default behavior
@@ -634,7 +634,20 @@ export function FastDDSProfileCreator({
       }
     });
 
-    profilesByType.forEach((profileList, type) => {
+    // Process profiles in the required XML schema order: transport_descriptors MUST come first
+    const orderedTypes = [
+      "transport_descriptor",
+      "domainparticipant_factory",
+      "participant",
+      "data_writer",
+      "data_reader",
+      "topic",
+    ];
+
+    orderedTypes.forEach((type) => {
+      const profileList = profilesByType.get(type);
+      if (!profileList || profileList.length === 0) return;
+
       if (!data.profiles) data.profiles = {};
 
       if (type === "transport_descriptor") {
