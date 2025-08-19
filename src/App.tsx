@@ -850,6 +850,7 @@ function App() {
                       onClick={() => handleVendorSelect("fastdds")}
                       variant="outline"
                       className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                      data-umami-event="Click Create Fastdds"
                     >
                       <FileText className="h-8 w-8 text-purple-600" />
                       <div className="text-center">
@@ -864,6 +865,7 @@ function App() {
                       onClick={() => handleVendorSelect("cyclonedds")}
                       variant="outline"
                       className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                      data-umami-event="Click Create Cyclonedds"
                     >
                       <FileText className="h-8 w-8 text-blue-600" />
                       <div className="text-center">
@@ -940,6 +942,13 @@ function App() {
               onClick={handlePreviewClick}
               variant="outline"
               className="flex items-center gap-2"
+              data-umami-event={`Click Preview ${
+                vendor === "fastdds"
+                  ? "Fastdds"
+                  : vendor === "cyclonedds"
+                  ? "Cyclonedds"
+                  : "Unknown"
+              }`}
             >
               <Eye className="w-4 h-4" />
               Preview {vendor === "zenoh" ? "Config" : "XML"}
@@ -947,6 +956,7 @@ function App() {
             <Button
               onClick={handleDownloadClick}
               className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+              data-umami-event="Click Download"
             >
               <Download className="w-4 h-4" />
               Download {vendor === "zenoh" ? "Config" : "XML"}
