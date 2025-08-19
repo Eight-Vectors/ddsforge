@@ -1,8 +1,8 @@
-# DDS XML Editor
+# DDS FORGE
 
 A modern, web-based configuration editor for Data Distribution Service (DDS) implementations. Create, edit, and validate DDS configuration files with an intuitive user interface.
 
-![DDS XML Editor](public/logo.png)
+![DDS FORGE](public/logo.png)
 
 ## Features
 
