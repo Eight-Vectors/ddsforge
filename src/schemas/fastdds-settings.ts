@@ -142,6 +142,360 @@ export const qosSettings = {
       // depth <= max_samples_per_instance
     },
   },
+  dataSharingQos: {
+    kind: {
+      values: ["OFF", "ON", "AUTOMATIC"],
+      default: "AUTOMATIC",
+      descriptions: {
+        OFF: "The data-sharing delivery is disabled. No communication will be performed using data-sharing delivery functionality",
+        ON: "The data-sharing delivery is manually enabled. An error will occur if the current topic is not compatible with data-sharing delivery. Communication with remote entities that share at least one data-sharing domain ID will be done using data-sharing delivery functionality",
+        AUTOMATIC: "data-sharing delivery will be activated if the current topic is compatible with data-sharing, and deactivated if not",
+      },
+    },
+    default: {
+      kind: "AUTOMATIC",
+      shared_dir: "", // Shared memory directory - empty string means default
+      max_domains: 0, // 0 = unlimited
+      domain_ids: [], // vector of domain IDs to share with
+      data_sharing_listener_thread: null, // Uses threadSettings.default when needed
+    },
+    descriptions: {
+      kind: "Data-sharing kind policy",
+      shared_dir:
+        "Shared memory directory used for memory-mapped files. If empty, uses system default",
+      max_domains:
+        "Maximum number of Data-Sharing domain IDs allowed. 0 means unlimited",
+      domain_ids:
+        "Data-sharing domain IDs - vector of domain IDs that are allowed to participate in data sharing",
+      data_sharing_listener_thread:
+        "Thread settings for the data-sharing listener thread",
+    },
+    types: {
+      kind: "DataSharingKind",
+      shared_dir: "string",
+      max_domains: "uint32_t",
+      domain_ids: "vector<uint64_t>",
+      data_sharing_listener_thread: "ThreadSettings",
+    },
+    validation: {
+      max_domains: { min: 0 },
+      domain_ids: { elementType: "uint64_t" },
+    },
+  },
+  deadlineQos: {
+    default: {
+      period: {
+        sec: "DURATION_INFINITY",
+        nanosec: 0,
+      },
+    },
+    descriptions: {
+      period:
+        "Maximum period in which the DataWriter commits to write new values",
+    },
+    types: {
+      period: "DurationType",
+    },
+  },
+  disableHeartbeatPiggyback: {
+    default: false,
+    description: "Whether to disable heartbeat piggyback",
+    type: "bool",
+  },
+  disablePositiveAcks: {
+    default: {
+      enabled: false,
+      duration: {
+        sec: "DURATION_INFINITY",
+        nanosec: 0,
+      },
+    },
+    descriptions: {
+      enabled: "Whether to disable positive acknowledgments",
+      duration: "Time to keep samples for positive acknowledgments",
+    },
+    types: {
+      enabled: "bool",
+      duration: "DurationType",
+    },
+  },
+  durabilityQos: {
+    kind: {
+      values: ["VOLATILE", "TRANSIENT_LOCAL", "TRANSIENT", "PERSISTENT"],
+      default: {
+        dataReaders: "VOLATILE",
+        dataWriters: "TRANSIENT_LOCAL",
+      },
+      descriptions: {
+        VOLATILE: "No persistence of data beyond lifetime of writer",
+        TRANSIENT_LOCAL:
+          "Data persists beyond writer lifetime but only locally",
+        TRANSIENT: "Data persists and is available to late-joining readers",
+        PERSISTENT: "Data persists beyond process lifetime",
+      },
+    },
+    default: {
+      kind: "VOLATILE", // Default for DataReaders
+    },
+    descriptions: {
+      kind: "Durability kind policy",
+    },
+    types: {
+      kind: "DurabilityQosPolicyKind",
+    },
+  },
+  entityFactoryQos: {
+    default: {
+      autoenable_created_entities: true,
+    },
+    descriptions: {
+      autoenable_created_entities:
+        "Whether to automatically enable created entities",
+    },
+    types: {
+      autoenable_created_entities: "bool",
+    },
+  },
+  groupDataQos: {
+    default: {
+      value: "",
+    },
+    descriptions: {
+      value: "Group data value (std::vector<octet> as string)",
+    },
+    types: {
+      value: "string",
+    },
+  },
+  latencyBudgetQos: {
+    default: {
+      duration: {
+        sec: 0,
+        nanosec: 0,
+      },
+    },
+    descriptions: {
+      duration:
+        "Hint to the infrastructure about the urgency of the data communication",
+    },
+    types: {
+      duration: "DurationType",
+    },
+  },
+  lifespanQos: {
+    default: {
+      duration: {
+        sec: "DURATION_INFINITY",
+        nanosec: 0,
+      },
+    },
+    descriptions: {
+      duration: "Maximum time for which samples are valid",
+    },
+    types: {
+      duration: "DurationType",
+    },
+  },
+  livelinessQos: {
+    kind: {
+      values: ["AUTOMATIC", "MANUAL_BY_PARTICIPANT", "MANUAL_BY_TOPIC"],
+      default: "AUTOMATIC",
+      descriptions: {
+        AUTOMATIC: "Liveliness is asserted automatically by the infrastructure",
+        MANUAL_BY_PARTICIPANT:
+          "Liveliness is asserted manually at the participant level",
+        MANUAL_BY_TOPIC: "Liveliness is asserted manually at the topic level",
+      },
+    },
+    default: {
+      kind: "AUTOMATIC",
+      lease_duration: {
+        sec: "DURATION_INFINITY",
+        nanosec: 0,
+      },
+      announcement_period: {
+        sec: "DURATION_INFINITY",
+        nanosec: 0,
+      },
+    },
+    descriptions: {
+      kind: "Liveliness kind policy",
+      lease_duration: "Maximum time between liveliness assertions",
+      announcement_period: "Period for automatic liveliness announcements",
+    },
+    types: {
+      kind: "LivelinessQosPolicyKind",
+      lease_duration: "DurationType",
+      announcement_period: "DurationType",
+    },
+  },
+  ownershipQos: {
+    kind: {
+      values: ["SHARED", "EXCLUSIVE"],
+      descriptions: {
+        SHARED: "Multiple DataWriters can write to the same instance",
+        EXCLUSIVE: "Only one DataWriter can write to an instance at a time",
+      },
+    },
+    default: {
+      kind: "SHARED",
+    },
+    descriptions: {
+      kind: "Ownership kind policy",
+    },
+    types: {
+      kind: "OwnershipQosPolicyKind",
+    },
+  },
+  ownershipStrengthQos: {
+    default: {
+      value: 0,
+    },
+    descriptions: {
+      value: "Ownership strength value for exclusive ownership",
+    },
+    types: {
+      value: "uint32_t",
+    },
+  },
+  partitionQos: {
+    default: {
+      names: [],
+    },
+    descriptions: {
+      names: "Set of partition names for logical separation",
+    },
+    types: {
+      names: "List<string>",
+    },
+  },
+  publishModeQos: {
+    kind: {
+      values: ["ASYNCHRONOUS", "SYNCHRONOUS"],
+      default: "ASYNCHRONOUS",
+      descriptions: {
+        ASYNCHRONOUS: "Data is published asynchronously",
+        SYNCHRONOUS: "Data is published synchronously",
+      },
+    },
+    default: {
+      kind: "ASYNCHRONOUS",
+      flow_controller_name: "",
+    },
+    descriptions: {
+      kind: "Publish mode kind",
+      flow_controller_name: "FlowControllersQos name for flow control",
+    },
+    types: {
+      kind: "PublishModeQosPolicyKind",
+      flow_controller_name: "string",
+    },
+  },
+  reliabilityQos: {
+    kind: {
+      values: ["BEST_EFFORT", "RELIABLE"],
+      default: {
+        dataReaders: "BEST_EFFORT",
+        dataWriters: "RELIABLE",
+      },
+      descriptions: {
+        BEST_EFFORT: "Data delivery is not guaranteed",
+        RELIABLE: "Data delivery is guaranteed with acknowledgments",
+      },
+    },
+    default: {
+      kind: "BEST_EFFORT", // Default for DataReaders
+      max_blocking_time: {
+        sec: 0,
+        nanosec: 100000000, // 100ms in nanoseconds
+      },
+    },
+    descriptions: {
+      kind: "Reliability kind policy",
+      max_blocking_time: "Maximum time to block when sending data",
+    },
+    types: {
+      kind: "ReliabilityQosPolicyKind",
+      max_blocking_time: "DurationType",
+    },
+  },
+  topicDataQos: {
+    default: {
+      value: "",
+    },
+    descriptions: {
+      value: "Topic data value (std::vector<octet> as string)",
+    },
+    types: {
+      value: "string",
+    },
+  },
+  userDataQos: {
+    default: {
+      value: "",
+    },
+    descriptions: {
+      value: "User data value (std::vector<octet> as string)",
+    },
+    types: {
+      value: "string",
+    },
+  },
+  writerTimes: {
+    default: {
+      initial_heartbeat_delay: {
+        sec: 0,
+        nanosec: 12000000, // 12 ms in nanoseconds
+      },
+      heartbeat_period: {
+        sec: 3,
+        nanosec: 0,
+      },
+      nack_response_delay: {
+        sec: 0,
+        nanosec: 5000000, // 5 ms in nanoseconds
+      },
+      nack_supression_duration: {
+        sec: 0,
+        nanosec: 0, // 0 ms
+      },
+    },
+    descriptions: {
+      initial_heartbeat_delay: "Initial heartbeat delay",
+      heartbeat_period: "Periodic heartbeat period",
+      nack_response_delay:
+        "Delay to apply to the response of an ACKNACK message",
+      nack_supression_duration:
+        "This time allows the DataWriter to ignore NACK messages for a given period of time right after the data has been sent",
+    },
+    types: {
+      initial_heartbeat_delay: "DurationType",
+      heartbeat_period: "DurationType",
+      nack_response_delay: "DurationType",
+      nack_supression_duration: "DurationType",
+    },
+  },
+  readerTimes: {
+    default: {
+      initial_acknack_delay: {
+        sec: 0,
+        nanosec: 70000000, // 70 ms in nanoseconds
+      },
+      heartbeat_response_delay: {
+        sec: 0,
+        nanosec: 5000000, // 5 ms in nanoseconds
+      },
+    },
+    descriptions: {
+      initial_acknack_delay: "Initial ACKNACK delay",
+      heartbeat_response_delay:
+        "Response time delay when receiving a Heartbeat",
+    },
+    types: {
+      initial_acknack_delay: "DurationType",
+      heartbeat_response_delay: "DurationType",
+    },
+  },
 };
 export const transportSettings = {
   builtinTransports: {
@@ -235,10 +589,8 @@ export const transportSettings = {
       calculate_crc:
         "Calculates the Cyclic Redundancy Code (CRC) for error control (TCP only)",
       check_crc: "Check the CRC for error control (TCP only)",
-      enable_tcp_nodelay:
-        "Socket option for disabling the Nagle algorithm. (TCP only)",
-      tcp_negotiation_timeout:
-        "Time to wait for logical port negotiation (in ms) (TCP only)",
+      enable_tcp_nodelay: "Socket option for disabling the Nagle algorithm. (TCP only)",
+      tcp_negotiation_timeout: "Time to wait for logical port negotiation (in ms) (TCP only)",
       segment_size:
         "Size (in bytes) of the shared-memory segment. (Optional, SHM only)",
       port_queue_capacity:
@@ -478,6 +830,71 @@ export const propertiesPolicy = {
   },
   description:
     "Allows the user to define a set of generic properties. Useful for extended or custom configuration parameters",
+};
+
+// Log configuration settings
+export const logSettings = {
+  default: {
+    use_default: true,
+    consumer: [
+      {
+        class: "StdoutConsumer",
+        // property: []
+      },
+    ],
+    thread_settings: {
+      scheduling_policy: -1,
+      priority: 0,
+      affinity: 0,
+      stack_size: -1,
+    },
+  },
+  descriptions: {
+    use_default:
+      "If set to FALSE, a call to Log::ClearConsumers() is performed. See Register Consumers.",
+    consumer:
+      "Defines the class and configuration of the consumer to be registered. Multiple consumers can be registered.",
+    thread_settings: "ThreadSettings for the logging thread.",
+  },
+  types: {
+    use_default: "bool",
+    consumer: "ConsumerDataType",
+    thread_settings: "ThreadSettings",
+  },
+  consumer: {
+    class: {
+      values: ["StdoutConsumer", "StdoutErrConsumer", "FileConsumer"],
+      default: "StdoutConsumer",
+      description: "The class of the consumer.",
+    },
+    property: {
+      name: {
+        values: ["filename", "append", "stderr_threshold"],
+        default: "filename",
+      },
+      // Note: value type depends on name; we treat it as text by default in the UI
+      defaults: {
+        filename: {
+          value: "output.log",
+          type: "text",
+        },
+        append: {
+          value: false,
+          type: "boolean",
+        },
+        stderr_threshold: {
+          value: "Log::Kind::Warning",
+          type: "select",
+          options: [
+            "Log::Kind::Info",
+            "Log::Kind::Warning",
+            "Log::Kind::Error",
+            "Log::Kind::Critical",
+          ],
+        },
+      },
+    },
+  },
 };
 export const discoverySettings = {
   discoveryProtocol: {

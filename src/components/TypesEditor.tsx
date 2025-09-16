@@ -25,6 +25,8 @@ export interface TypeDefinition {
     sequenceMaxLength?: number | string; // For sequence members
     key_type?: string; // For map members
     mapMaxLength?: number | string; // For map members
+    key?: boolean; // Marks member as key
+    stringMaxLength?: number | string; // For string/wstring bounds
   }>;
   // for enum - using attributes
   enumerator?: Array<{
@@ -69,6 +71,7 @@ interface TypesEditorProps {
 
 const PRIMITIVE_TYPES = [
   "boolean",
+  "byte",
   "char8",
   "char16",
   "int8",
@@ -88,15 +91,15 @@ const PRIMITIVE_TYPES = [
 ];
 
 export function TypesEditor({ types, onChange }: TypesEditorProps) {
-  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
-  const [editingType, setEditingType] = useState<string | null>(null);
+  const [expandedTypes, setExpandedTypes] = useState<Set<number>>(new Set());
+  const [editingType, setEditingType] = useState<number | null>(null);
 
-  const toggleExpanded = (typeName: string) => {
+  const toggleExpanded = (typeIndex: number) => {
     const newExpanded = new Set(expandedTypes);
-    if (newExpanded.has(typeName)) {
-      newExpanded.delete(typeName);
+    if (newExpanded.has(typeIndex)) {
+      newExpanded.delete(typeIndex);
     } else {
-      newExpanded.add(typeName);
+      newExpanded.add(typeIndex);
     }
     setExpandedTypes(newExpanded);
   };
@@ -107,9 +110,10 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
       name: `NewType${types.length + 1}`,
       member: [],
     };
+    const newIndex = types.length;
     onChange([...types, newType]);
-    setEditingType(newType.name);
-    setExpandedTypes(new Set([...expandedTypes, newType.name]));
+    setEditingType(newIndex);
+    setExpandedTypes(new Set([...expandedTypes, newIndex]));
   };
 
   const updateType = (index: number, updates: Partial<TypeDefinition>) => {
@@ -121,6 +125,19 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
   const deleteType = (index: number) => {
     const newTypes = types.filter((_, i) => i !== index);
     onChange(newTypes);
+    setExpandedTypes((prev) => {
+      const adjusted = new Set<number>();
+      prev.forEach((i) => {
+        if (i < index) adjusted.add(i);
+        else if (i > index) adjusted.add(i - 1);
+      });
+      return adjusted;
+    });
+    setEditingType((prev) => {
+      if (prev == null) return prev;
+      if (prev === index) return null;
+      return prev > index ? prev - 1 : prev;
+    });
   };
 
   const addStructMember = (typeIndex: number) => {
@@ -300,15 +317,15 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
   };
 
   const renderTypeEditor = (type: TypeDefinition, index: number) => {
-    const isExpanded = expandedTypes.has(type.name);
+    const isExpanded = expandedTypes.has(index);
 
     return (
-      <Card key={type.name} className="mb-4">
+      <Card key={index} className="mb-4">
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => toggleExpanded(type.name)}
+                onClick={() => toggleExpanded(index)}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 {isExpanded ? (
@@ -317,7 +334,7 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                   <ChevronRight className="w-4 h-4" />
                 )}
               </button>
-              {editingType === type.name ? (
+              {editingType === index ? (
                 <Input
                   value={type.name}
                   onChange={(e) => updateType(index, { name: e.target.value })}
@@ -331,7 +348,7 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
               ) : (
                 <CardTitle
                   className="text-sm cursor-pointer"
-                  onClick={() => setEditingType(type.name)}
+                  onClick={() => setEditingType(index)}
                 >
                   {type.name}
                 </CardTitle>
@@ -475,70 +492,94 @@ export function TypesEditor({ types, onChange }: TypesEditorProps) {
                       </div>
                     )}
                     {/* Sequence attributes */}
-                    {member.nonBasicTypeName && (
-                      <div className="w-32 space-y-1">
-                        <Label className="text-xs">Seq Max Length</Label>
+                    <div className="w-36 space-y-1">
+                      <Label className="text-xs">Seq Max Length</Label>
+                      <Input
+                        value={member.sequenceMaxLength || ""}
+                        onChange={(e) =>
+                          updateStructMember(index, memberIndex, {
+                            sequenceMaxLength: e.target.value,
+                          })
+                        }
+                        className="h-8"
+                        placeholder="-1 for unbounded"
+                      />
+                    </div>
+                    {/* String max length */}
+                    {(member.type === "string" || member.type === "wstring") && (
+                      <div className="w-40 space-y-1">
+                        <Label className="text-xs">String Max Length</Label>
                         <Input
-                          value={member.sequenceMaxLength || ""}
+                          value={member.stringMaxLength || ""}
                           onChange={(e) =>
                             updateStructMember(index, memberIndex, {
-                              sequenceMaxLength: e.target.value,
+                              stringMaxLength: e.target.value,
                             })
                           }
                           className="h-8"
-                          placeholder="-1 for unbounded"
+                          placeholder="optional"
                         />
                       </div>
                     )}
                     {/* Array dimensions */}
-                    {member.type !== "nonBasic" && (
+                    <div className="w-32 space-y-1">
+                      <Label className="text-xs">Array Dims</Label>
+                      <Input
+                        value={member.arrayDimensions || ""}
+                        onChange={(e) =>
+                          updateStructMember(index, memberIndex, {
+                            arrayDimensions: e.target.value,
+                          })
+                        }
+                        className="h-8"
+                        placeholder="e.g., 2,3,4"
+                      />
+                    </div>
+                    {/* Map attributes */}
+                    <>
                       <div className="w-32 space-y-1">
-                        <Label className="text-xs">Array Dims</Label>
+                        <Label className="text-xs">Key Type</Label>
                         <Input
-                          value={member.arrayDimensions || ""}
+                          value={member.key_type || ""}
                           onChange={(e) =>
                             updateStructMember(index, memberIndex, {
-                              arrayDimensions: e.target.value,
+                              key_type: e.target.value,
                             })
                           }
                           className="h-8"
-                          placeholder="e.g., 2,3,4"
+                          placeholder="e.g., string"
                         />
                       </div>
-                    )}
-                    {/* Map attributes */}
-                    {member.type !== "nonBasic" && (
-                      <>
-                        <div className="w-32 space-y-1">
-                          <Label className="text-xs">Key Type</Label>
+                      {member.key_type && (
+                        <div className="w-28 space-y-1">
+                          <Label className="text-xs">Map Max Len</Label>
                           <Input
-                            value={member.key_type || ""}
+                            value={member.mapMaxLength || ""}
                             onChange={(e) =>
                               updateStructMember(index, memberIndex, {
-                                key_type: e.target.value,
+                                mapMaxLength: e.target.value,
                               })
                             }
                             className="h-8"
-                            placeholder="e.g., string"
+                            placeholder="-1"
                           />
                         </div>
-                        {member.key_type && (
-                          <div className="w-32 space-y-1">
-                            <Label className="text-xs">Map Max Len</Label>
-                            <Input
-                              value={member.mapMaxLength || ""}
-                              onChange={(e) =>
-                                updateStructMember(index, memberIndex, {
-                                  mapMaxLength: e.target.value,
-                                })
-                              }
-                              className="h-8"
-                              placeholder="-1"
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
+                      )}
+                    </>
+                    {/* Key flag */}
+                    <div className="w-20 flex items-center gap-2 mb-1">
+                      <input
+                        type="checkbox"
+                        checked={!!member.key}
+                        onChange={(e) =>
+                          updateStructMember(index, memberIndex, {
+                            key: e.target.checked,
+                          })
+                        }
+                        className="w-4 h-4"
+                      />
+                      <Label className="text-xs">Key</Label>
+                    </div>
                     <Button
                       size="sm"
                       variant="ghost"

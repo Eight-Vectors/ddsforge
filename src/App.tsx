@@ -817,6 +817,9 @@ function App() {
               className="h-10 w-40 object-cover"
             />
           </button>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            DDS XML config generator for CycloneDDS & Fast DDS
+          </h1>
           <Button
             onClick={handleShowHelp}
             variant="ghost"
@@ -1118,6 +1121,7 @@ function App() {
               target="_blank"
               rel="noopener noreferrer"
               className="hover:opacity-80 transition-opacity"
+              data-umami-event="Click EightVectors Logo"
             >
               <img
                 src="/eightvectors.avif"
@@ -1133,6 +1137,7 @@ function App() {
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-purple-600 hover:underline"
+              data-umami-event="Click EightVectors Text"
             >
               by EightVectors
             </a>

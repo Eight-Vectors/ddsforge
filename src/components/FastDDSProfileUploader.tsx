@@ -2,18 +2,20 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormField } from "../types/dds";
 import { ProfileManager } from "./ProfileManager";
 import { FormField as FormFieldComponent } from "./FormField";
-import { type TypeDefinition } from "./TypesEditor";
+import { type TypeDefinition, TypesEditor } from "./TypesEditor";
 import { Card, CardHeader, CardTitle } from "./ui/card";
 import {
   xmlToFormFields,
   buildXML,
   mergeUploadedDataIntoSchema,
+  formFieldsToXML,
 } from "../utils/xmlParser";
 import { getDefaultProfileData } from "../utils/profileUtils";
 import { isFieldModified } from "../utils/fieldUtils";
 import { fastDDSSchema } from "../schemas/fastdds-schema";
 import { FastDDSValidator } from "../utils/fastddsRules";
 import { AlertCircle, AlertTriangle } from "lucide-react";
+import { typeDefinitionsToTypesXml, parseTypesFromObject } from "../utils/typesXml";
 
 interface FastDDSProfileEditorProps {
   uploadedData?: any;
@@ -52,15 +54,15 @@ export default function FastDDSProfileUploader({
   const [modifiedProfilesData, setModifiedProfilesData] = useState<
     Map<string, any>
   >(new Map());
-  const [modifiedLogData, _setModifiedLogData] = useState<any>({});
+  const [modifiedLogData, setModifiedLogData] = useState<any>({});
 
   const [originalUploadedData, setOriginalUploadedData] = useState<
     Map<string, any>
   >(new Map());
 
-  const [_logFields, setLogFields] = useState<FormField[]>([]);
+  const [logFields, setLogFields] = useState<FormField[]>([]);
   const [typeDefinitions, setTypeDefinitions] = useState<TypeDefinition[]>([]);
-  const [_originalLogFields, setOriginalLogFields] = useState<FormField[]>([]);
+  const [originalLogFields, setOriginalLogFields] = useState<FormField[]>([]);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [validationResult, setValidationResult] = useState<{
@@ -185,28 +187,15 @@ export default function FastDDSProfileUploader({
         setLogFields(fields);
         setOriginalLogFields(JSON.parse(JSON.stringify(fields)));
       } else {
-        setLogFields([]);
-        setOriginalLogFields([]);
+        // Set defaults from schema
+        const defaults = fastDDSSchema.dds.log;
+        const fields = xmlToFormFields(defaults);
+        setLogFields(fields);
+        setOriginalLogFields(JSON.parse(JSON.stringify(fields)));
       }
 
       if (uploadedData.types && uploadedData.types.type) {
-        const typeArray = Array.isArray(uploadedData.types.type)
-          ? uploadedData.types.type
-          : [uploadedData.types.type];
-        const parsedTypes: TypeDefinition[] = typeArray.map((t: any) => {
-          const typeDef: TypeDefinition = {
-            kind: t.kind || "struct",
-            name: t.name || "UnnamedType",
-          };
-
-          Object.keys(t).forEach((key) => {
-            if (key !== "kind" && key !== "name") {
-              (typeDef as any)[key] = t[key];
-            }
-          });
-
-          return typeDef;
-        });
+        const parsedTypes: TypeDefinition[] = parseTypesFromObject(uploadedData.types);
         setTypeDefinitions(parsedTypes);
       } else {
         const defaultTypes: TypeDefinition[] = [];
@@ -215,9 +204,8 @@ export default function FastDDSProfileUploader({
             ? fastDDSSchema.dds.types.type
             : [fastDDSSchema.dds.types.type];
           typeArray.forEach((t: any) => {
-            if (t.kind && t.name) {
-              defaultTypes.push(t as TypeDefinition);
-            }
+            const parsed = parseTypesFromObject({ type: t });
+            if (parsed.length > 0) defaultTypes.push(parsed[0]);
           });
         }
         setTypeDefinitions(defaultTypes);
@@ -238,6 +226,8 @@ export default function FastDDSProfileUploader({
         type: "transport_descriptor",
         isDefault: false,
       },
+      { name: "default_data_writer", type: "data_writer", isDefault: false },
+      { name: "default_data_reader", type: "data_reader", isDefault: false },
     ];
 
     defaultProfiles.forEach((profile) => {
@@ -386,27 +376,55 @@ export default function FastDDSProfileUploader({
   };
 
   const generateAndNotifyXML = useCallback(() => {
-    const data: any = {};
-
-    // Include log configuration if modified
-    if (Object.keys(modifiedLogData).length > 0) {
-      if (!data.profiles) data.profiles = {};
-      data.profiles.log = modifiedLogData;
+    // Start from the uploaded data as baseline so preview reflects the file contents
+    let data: any = {};
+    if (uploadedData && typeof uploadedData === "object") {
+      try {
+        data = JSON.parse(JSON.stringify(uploadedData));
+      } catch {
+        data = {};
+      }
     }
 
-    // Add profiles from modified data
-    const profilesByType = new Map<string, any[]>();
+    // Simple deep merge helper for objects
+    const deepMerge = (target: any, source: any): any => {
+      Object.keys(source || {}).forEach((key) => {
+        const sourceValue = source[key];
+        const targetValue = target[key];
+        if (
+          sourceValue &&
+          typeof sourceValue === "object" &&
+          !Array.isArray(sourceValue)
+        ) {
+          if (
+            !targetValue ||
+            typeof targetValue !== "object" ||
+            Array.isArray(targetValue)
+          ) {
+            target[key] = {};
+          }
+          deepMerge(target[key], sourceValue);
+        } else {
+          target[key] = sourceValue;
+        }
+      });
+      return target;
+    };
 
+    // Merge modified log configuration (if any) onto baseline
+    if (Object.keys(modifiedLogData).length > 0) {
+      data.log = deepMerge({ ...(data.log || {}) }, modifiedLogData);
+    }
+
+    // Apply profile-level modifications and renames onto baseline
     profiles.forEach((profile) => {
       const profileKey = `${profile.type}_${profile.name}`;
       const modifiedData = modifiedProfilesData.get(profileKey);
 
-      // Get the profile name from the fields
       const fields = profileFieldsMap.get(profileKey);
       const profileNameField = fields?.find((f) => f.name === "@_profile_name");
       const profileName = profileNameField?.value || profile.name;
 
-      // Check if profile name was modified
       const originalFields = originalFieldsMap.get(profileKey) || [];
       const originalProfileNameField = originalFields.find(
         (f) => f.name === "@_profile_name"
@@ -416,7 +434,6 @@ export default function FastDDSProfileUploader({
         originalProfileNameField &&
         profileNameField.value !== originalProfileNameField.value;
 
-      // Check if is_default_profile was modified
       const isDefaultField = fields?.find(
         (f) => f.name === "@_is_default_profile"
       );
@@ -428,165 +445,127 @@ export default function FastDDSProfileUploader({
         originalIsDefaultField &&
         isDefaultField.value !== originalIsDefaultField.value;
 
-      // For transport descriptors, check if transport_id or type was modified or force included
-      let transportIdModified = false;
-      let typeModified = false;
-      let transportIdForceInclude = false;
-      let typeForceInclude = false;
-
-      if (profile.type === "transport_descriptor") {
-        const transportIdField = fields?.find((f) => f.name === "transport_id");
-        const originalTransportIdField = originalFields.find(
-          (f) => f.name === "transport_id"
-        );
-        transportIdModified = !!(
-          transportIdField &&
-          originalTransportIdField &&
-          transportIdField.value !== originalTransportIdField.value
-        );
-        transportIdForceInclude = !!transportIdField?.forceInclude;
-
-        const typeField = fields?.find((f) => f.name === "type");
-        const originalTypeField = originalFields.find((f) => f.name === "type");
-        typeModified = !!(
-          typeField &&
-          originalTypeField &&
-          typeField.value !== originalTypeField.value
-        );
-        typeForceInclude = !!typeField?.forceInclude;
+      if (!modifiedData && !profileNameModified && !isDefaultModified) {
+        return;
       }
 
-      const isFromUploadedData = uploadedProfileKeys.has(profileKey);
-
-      if (
-        isFromUploadedData ||
-        (modifiedData && Object.keys(modifiedData).length > 0) ||
-        profileNameModified ||
-        isDefaultModified ||
-        transportIdModified ||
-        typeModified ||
-        transportIdForceInclude ||
-        typeForceInclude
-      ) {
-        const profileData: any = {};
-
-        // Add profile/transport attributes
-        if (profile.type !== "transport_descriptor") {
-          profileData["@_profile_name"] = profileName;
-          // Always include is_default_profile for participant profiles
-          profileData["@_is_default_profile"] = isDefaultField?.value || false;
-        } else {
-          // For transport descriptors, include transport_id and type
-          const transportIdField = fields?.find(
-            (f) => f.name === "transport_id"
-          );
-          const typeField = fields?.find((f) => f.name === "type");
-          profileData["transport_id"] = transportIdField?.value || profile.name;
-          profileData["type"] = typeField?.value || "UDPv4";
-        }
-
-        // For uploaded profiles, use the original uploaded data
-        if (isFromUploadedData) {
-          const originalData = originalUploadedData.get(profileKey);
-          if (originalData) {
-            // Start with the original uploaded data
-            const uploadedContent = { ...originalData };
-            // Remove profile attributes as they're already handled above
-            delete uploadedContent["@_profile_name"];
-            delete uploadedContent["@_is_default_profile"];
-            delete uploadedContent["transport_id"];
-            delete uploadedContent["type"];
-
-            // Apply any modifications from the UI
-            if (modifiedData) {
-              // Deep merge modifications into uploaded data
-              const deepMerge = (target: any, source: any) => {
-                Object.keys(source).forEach((key) => {
-                  if (
-                    source[key] &&
-                    typeof source[key] === "object" &&
-                    !Array.isArray(source[key])
-                  ) {
-                    if (!target[key]) target[key] = {};
-                    deepMerge(target[key], source[key]);
-                  } else {
-                    target[key] = source[key];
-                  }
-                });
-              };
-              deepMerge(uploadedContent, modifiedData);
-            }
-
-            Object.assign(profileData, uploadedContent);
-          }
-        } else {
-          // For non-uploaded profiles, add modified data if any
-          if (modifiedData) {
-            Object.assign(profileData, modifiedData);
-          }
-        }
-
-        if (!profilesByType.has(profile.type)) {
-          profilesByType.set(profile.type, []);
-        }
-        profilesByType.get(profile.type)!.push(profileData);
+      const changes: any = { ...(modifiedData || {}) };
+      if (profileNameModified) {
+        changes["@_profile_name"] = profileName;
       }
-    });
-
-    // Process profiles in the required XML schema order: transport_descriptors MUST come first
-    const orderedTypes = [
-      "transport_descriptor",
-      "domainparticipant_factory",
-      "participant",
-      "data_writer",
-      "data_reader",
-      "topic",
-    ];
-
-    orderedTypes.forEach((type) => {
-      const profileList = profilesByType.get(type);
-      if (!profileList || profileList.length === 0) return;
+      if (isDefaultModified) {
+        changes["@_is_default_profile"] = isDefaultField?.value;
+      }
 
       if (!data.profiles) data.profiles = {};
 
-      if (type === "transport_descriptor") {
-        data.profiles["transport_descriptors"] = {
-          transport_descriptor:
-            profileList.length === 1 ? profileList[0] : profileList,
-        };
-      } else if (type === "domainparticipant_factory") {
-        data.profiles[type] = profileList[0];
-      } else {
-        data.profiles[type] =
-          profileList.length === 1 ? profileList[0] : profileList;
+      if (profile.type === "transport_descriptor") {
+        const tdRoot =
+          data.profiles["transport_descriptors"] ||
+          (data.profiles["transport_descriptors"] = {});
+        let baseList = tdRoot.transport_descriptor;
+
+        const transportIdFromFields =
+          fields?.find((f) => f.name === "transport_id")?.value ||
+          fields?.find((f) => f.name === "@_transport_id")?.value ||
+          profile.name;
+
+        if (!baseList) {
+          tdRoot.transport_descriptor = { ...changes };
+          return;
+        }
+        if (!Array.isArray(baseList)) {
+          baseList = [baseList];
+          tdRoot.transport_descriptor = baseList;
+        }
+
+        const found = baseList.find(
+          (p: any) =>
+            (p && (p["@_transport_id"] || p.transport_id)) === transportIdFromFields
+        );
+        if (found) {
+          deepMerge(found, changes);
+        } else {
+          baseList.push({ ...changes });
+        }
+        return;
       }
+
+      if (profile.type === "domainparticipant_factory") {
+        if (data.profiles["domainparticipant_factory"]) {
+          deepMerge(data.profiles["domainparticipant_factory"], changes);
+        } else {
+          data.profiles["domainparticipant_factory"] = { ...changes };
+        }
+        return;
+      }
+
+      // Standard profile types (participant, topic, data_writer, data_reader, etc.)
+      const typeKey = profile.type;
+      let base = data.profiles[typeKey];
+
+      let list: any[] = [];
+      if (!base) {
+        // Section did not exist in uploaded file; create if there are changes
+        list = [];
+      } else if (Array.isArray(base)) {
+        list = base;
+      } else {
+        list = [base];
+      }
+
+      const matchName =
+        profileNameModified && originalProfileNameField
+          ? originalProfileNameField.value
+          : profileName;
+
+      const index = list.findIndex(
+        (p: any) => p && p["@_profile_name"] === matchName
+      );
+
+      if (index >= 0) {
+        // Ensure required attributes are present when updating existing entries
+        const baseAttrs: any = {
+          "@_profile_name": profileName,
+        };
+        if (isDefaultField) {
+          baseAttrs["@_is_default_profile"] = isDefaultField.value === true;
+        }
+        deepMerge(list[index], { ...baseAttrs, ...changes });
+      } else {
+        // Create a new entry with required attributes
+        const baseAttrs: any = {
+          "@_profile_name": profileName,
+          "@_is_default_profile": isDefaultField
+            ? isDefaultField.value === true
+            : false,
+        };
+        list.push({ ...baseAttrs, ...changes });
+      }
+
+      data.profiles[typeKey] = list.length === 1 ? list[0] : list;
     });
 
+    // Types section (always rebuild from editor state if present)
     if (typeDefinitions.length > 0) {
-      data.types = {
-        type: typeDefinitions.map((t) => ({
-          "@_name": t.name,
-          kind: t.kind,
-          // Add other properties based on type
-        })),
-      };
+      const typesXml = typeDefinitionsToTypesXml(typeDefinitions);
+      if (typesXml) {
+        data.types = typesXml;
+      }
     }
 
-    // Only include profiles section if there's actual content
     const hasProfiles = data.profiles && Object.keys(data.profiles).length > 0;
     const hasTypes =
       data.types && data.types.type && data.types.type.length > 0;
 
-    if (!hasProfiles && !hasTypes) {
+    if (!hasProfiles && !hasTypes && !data.log) {
       const xml = buildXML({}, "fastdds");
       onXMLGenerate(xml);
     } else {
-      // Validate configuration before generating XML
       const validator = new FastDDSValidator();
       const validation = validator.validateConfig(data);
       setValidationResult(validation);
 
-      // Generate XML with auto-fix if there are issues
       const xml = buildXML(data, "fastdds", {
         autoFix: validation.autoFixAvailable.length > 0,
       });
@@ -598,7 +577,7 @@ export default function FastDDSProfileUploader({
     modifiedProfilesData,
     modifiedLogData,
     typeDefinitions,
-    uploadedProfileKeys,
+    uploadedData,
     originalFieldsMap,
     onXMLGenerate,
   ]);
@@ -1212,7 +1191,6 @@ export default function FastDDSProfileUploader({
               </div>
             )}
 
-          {/* Coming soon notice for Data Writer and Data Reader */}
           <div className="p-4 bg-blue-50 border-b border-blue-200">
             <div className="flex items-center space-x-2 text-sm text-blue-700">
               <svg
@@ -1228,7 +1206,7 @@ export default function FastDDSProfileUploader({
               </svg>
               <p>
                 <span className="font-medium">Coming Soon:</span> Support for
-                Data Writer and Data Reader profiles will be available in a
+                Log and Types profiles will be available in a
                 future update.
               </p>
             </div>
@@ -1264,23 +1242,157 @@ export default function FastDDSProfileUploader({
             </>
           )}
 
-          {activeTab === "log" && (
+          {/* {activeTab === "log" && (
             <div className="flex-1 overflow-y-scroll p-6">
-              <div className="max-w-4xl mx-auto">
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                    <AlertCircle className="w-8 h-8 text-gray-400" />
+              <div className="max-w-4xl mx-auto space-y-6">
+                {logFields.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                      <AlertCircle className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Log
+                    </h3>
+                    <p className="text-gray-600">No log fields available.</p>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Log Configuration
-                  </h3>
-                  <p className="text-gray-600">
-                    Support for Log configuration is coming soon.
-                  </p>
-                  <p className="text-sm text-gray-500 mt-4">
-                    This feature will be available in a future release.
-                  </p>
-                </div>
+                ) : (
+                  <>
+                    {logFields.map((field) => (
+                      <FormFieldComponent
+                        key={field.name}
+                        field={field}
+                        onChange={(path, value) => {
+                          const updateFieldValue = (
+                            fields: FormField[],
+                            targetPath: string[],
+                            newValue: any
+                          ): FormField[] => {
+                            return fields.map((f) => {
+                              if (
+                                JSON.stringify(f.path) ===
+                                JSON.stringify(targetPath)
+                              ) {
+                                return { ...f, value: newValue } as any;
+                              }
+                              if (
+                                f.type === "array" &&
+                                f.value &&
+                                Array.isArray(f.value)
+                              ) {
+                                const pathMatches = f.path.every(
+                                  (p, i) => p === targetPath[i]
+                                );
+                                if (
+                                  pathMatches &&
+                                  targetPath.length > f.path.length
+                                ) {
+                                  const arrayIndex = parseInt(
+                                    targetPath[f.path.length]
+                                  );
+                                  if (
+                                    !isNaN(arrayIndex) &&
+                                    arrayIndex < f.value.length
+                                  ) {
+                                    const itemPath = targetPath.slice(
+                                      f.path.length + 1
+                                    );
+                                    if (itemPath.length === 0) {
+                                      const newArray = [...f.value];
+                                      newArray[arrayIndex] = newValue;
+                                      return { ...f, value: newArray } as any;
+                                    } else {
+                                      const newArray = [...f.value];
+                                      let current = newArray[arrayIndex];
+                                      for (
+                                        let i = 0;
+                                        i < itemPath.length - 1;
+                                        i++
+                                      ) {
+                                        if (!current[itemPath[i]]) {
+                                          current[itemPath[i]] = {};
+                                        }
+                                        current = current[itemPath[i]];
+                                      }
+                                      current[itemPath[itemPath.length - 1]] =
+                                        newValue;
+                                      return { ...f, value: newArray } as any;
+                                    }
+                                  }
+                                }
+                              }
+                              if (f.fields && targetPath.length > f.path.length) {
+                                const pathMatches = f.path.every(
+                                  (p, i) => p === targetPath[i]
+                                );
+                                if (pathMatches) {
+                                  return {
+                                    ...f,
+                                    fields: updateFieldValue(
+                                      f.fields,
+                                      targetPath,
+                                      newValue
+                                    ),
+                                  } as any;
+                                }
+                              }
+                              return f as any;
+                            });
+                          };
+
+                          const updated = updateFieldValue(logFields, path, value);
+                          setLogFields(updated);
+                          const xml = formFieldsToXML(
+                            updated,
+                            true,
+                            "fastdds",
+                            undefined,
+                            originalLogFields
+                          );
+                          setModifiedLogData(xml);
+                        }}
+                        isModified={isFieldModified(field, originalLogFields)}
+                        originalFields={originalLogFields}
+                        excludeDefaults={true}
+                        onForceIncludeChange={(path, forceInclude) => {
+                          const apply = (
+                            fields: FormField[],
+                            targetPath: string[]
+                          ): FormField[] =>
+                            fields.map((f) => {
+                              if (
+                                JSON.stringify(f.path) ===
+                                JSON.stringify(targetPath)
+                              ) {
+                                return { ...f, forceInclude } as any;
+                              }
+                              if (f.fields && targetPath.length > f.path.length) {
+                                const pathMatches = f.path.every(
+                                  (p, i) => p === targetPath[i]
+                                );
+                                if (pathMatches) {
+                                  return {
+                                    ...f,
+                                    fields: apply(f.fields, targetPath),
+                                  } as any;
+                                }
+                              }
+                              return f as any;
+                            });
+                          const updated = apply(logFields, path);
+                          setLogFields(updated);
+                          const xml = formFieldsToXML(
+                            updated,
+                            true,
+                            "fastdds",
+                            undefined,
+                            originalLogFields
+                          );
+                          setModifiedLogData(xml);
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1288,23 +1400,52 @@ export default function FastDDSProfileUploader({
           {activeTab === "types" && (
             <div className="flex-1 p-6 overflow-y-scroll">
               <div className="max-w-4xl mx-auto">
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                    <AlertCircle className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Types Configuration
-                  </h3>
-                  <p className="text-gray-600">
-                    Support for Types configuration is coming soon.
-                  </p>
-                  <p className="text-sm text-gray-500 mt-4">
-                    This feature will be available in a future release.
-                  </p>
-                </div>
+                <TypesEditor types={typeDefinitions} onChange={setTypeDefinitions} />
               </div>
             </div>
-          )}
+          )} */}
+
+{activeTab === "log" && (
+          <div className="flex-1 overflow-y-scroll p-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                  <AlertCircle className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Log Configuration
+                </h3>
+                <p className="text-gray-600">
+                  Support for Log configuration is coming soon.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  This feature will be available in a future release.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "types" && (
+          <div className="flex-1 p-6 overflow-y-scroll">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                  <AlertCircle className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Types Configuration
+                </h3>
+                <p className="text-gray-600">
+                  Support for Types configuration is coming soon.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  This feature will be available in a future release.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
           {/* {activeTab === "modified" && (
             <div className="flex-1 p-6 overflow-y-scroll">

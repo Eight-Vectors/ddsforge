@@ -153,11 +153,9 @@ export const getDefaultProfileData = (profileType: string): any => {
     case "participant":
       return schema.participant?.[0] || null;
     case "data_writer":
-      // Data writer profiles are not supported in this version
-      return null;
+      return schema.data_writer?.[0] || null;
     case "data_reader":
-      // Data reader profiles are not supported in this version
-      return null;
+      return schema.data_reader?.[0] || null;
     case "topic":
       return schema.topic?.[0] || null;
     case "transport_descriptor":

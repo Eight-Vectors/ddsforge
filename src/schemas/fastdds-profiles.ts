@@ -85,7 +85,6 @@ export const createDefaultDiscoveryConfig = () => ({
   discoveryServersList: [],
 });
 
-// Helper function to create a flow controller configuration
 export const createFlowController = (name: string, overrides: any = {}) => ({
   name: name || qosSettings.flowControllers.default.name,
   scheduler:
@@ -99,7 +98,6 @@ export const createFlowController = (name: string, overrides: any = {}) => ({
   sender_thread: overrides.sender_thread || threadSettings.default,
 });
 
-// Helper function to create builtin configuration
 export const createBuiltinConfig = (overrides: any = {}) => {
   const builtin: any = {
     avoid_builtin_multicast:
@@ -240,6 +238,36 @@ export const createSendBuffersConfig = (overrides: any = {}) => ({
       : memorySettings.sendBuffersAllocation.default.dynamic,
   //network_buffers_config is not supported in FastDDS XML format
   // it's only available in the C++ API
+});
+
+export const createMatchedSubscribersAllocation = (overrides: any = {}) => ({
+  initial:
+    overrides.initial !== undefined
+      ? overrides.initial
+      : memorySettings.allocationConfiguration.default.initial,
+  maximum:
+    overrides.maximum !== undefined
+      ? overrides.maximum
+      : memorySettings.allocationConfiguration.default.maximum,
+  increment:
+    overrides.increment !== undefined
+      ? overrides.increment
+      : memorySettings.allocationConfiguration.default.increment,
+});
+
+export const createMatchedPublishersAllocation = (overrides: any = {}) => ({
+  initial:
+    overrides.initial !== undefined
+      ? overrides.initial
+      : memorySettings.allocationConfiguration.default.initial,
+  maximum:
+    overrides.maximum !== undefined
+      ? overrides.maximum
+      : memorySettings.allocationConfiguration.default.maximum,
+  increment:
+    overrides.increment !== undefined
+      ? overrides.increment
+      : memorySettings.allocationConfiguration.default.increment,
 });
 
 export const createPortConfig = (overrides: any = {}) => ({
@@ -582,6 +610,341 @@ export const defaultTransportDescriptor = createTransportDescriptor(
   "default_transport",
   "UDPv4"
 );
+
+export const createDeadlineQos = (overrides: any = {}) => ({
+  period: overrides.period || qosSettings.deadlineQos.default.period,
+});
+
+export const createDurabilityQos = (kind: string = "VOLATILE") => ({
+  kind,
+});
+
+export const createDurabilityServiceQos = (overrides: any = {}) => ({
+  history_kind: overrides.history_kind || "KEEP_LAST",
+  history_depth: overrides.history_depth || 1,
+  max_samples: overrides.max_samples || -1,
+  max_instances: overrides.max_instances || -1,
+  max_samples_per_instance: overrides.max_samples_per_instance || -1,
+});
+
+export const createLatencyBudgetQos = (overrides: any = {}) => ({
+  duration: overrides.duration || qosSettings.latencyBudgetQos.default.duration,
+});
+
+export const createLivelinessQos = (overrides: any = {}) => ({
+  kind: overrides.kind || qosSettings.livelinessQos.default.kind,
+  lease_duration:
+    overrides.lease_duration ||
+    qosSettings.livelinessQos.default.lease_duration,
+  announcement_period:
+    overrides.announcement_period ||
+    qosSettings.livelinessQos.default.announcement_period,
+});
+
+export const createReliabilityQos = (
+  kind: string = "RELIABLE",
+  max_blocking_time: any = qosSettings.reliabilityQos.default.max_blocking_time
+) => ({
+  kind,
+  max_blocking_time,
+});
+
+export const createLifespanQos = (overrides: any = {}) => ({
+  duration: overrides.duration || qosSettings.lifespanQos.default.duration,
+});
+
+export const createOwnershipQos = (kind: string = "SHARED") => ({
+  kind,
+});
+
+export const createOwnershipStrengthQos = (value: number = 0) => ({
+  value,
+});
+
+export const createPublishModeQos = (
+  kind: string = "SYNCHRONOUS",
+  flow_controller_name: string = ""
+) => ({
+  kind,
+  ...(flow_controller_name && { flow_controller_name }),
+});
+
+export const createPartitionQos = (names: string[] = []) => ({
+  names,
+});
+
+export const createDataSharingQos = (overrides: any = {}) => ({
+  kind: overrides.kind || qosSettings.dataSharingQos.default.kind,
+  shared_dir:
+    overrides.shared_dir !== undefined
+      ? overrides.shared_dir
+      : overrides.shared_dir !== undefined
+        ? overrides.shared_dir
+        : qosSettings.dataSharingQos.default.shared_dir,
+  max_domains:
+    overrides.max_domains !== undefined
+      ? overrides.max_domains
+      : qosSettings.dataSharingQos.default.max_domains,
+  domain_ids:
+    overrides.domain_ids !== undefined
+      ? overrides.domain_ids
+      : qosSettings.dataSharingQos.default.domain_ids,
+  ...(overrides.data_sharing_listener_thread !== undefined && {
+    data_sharing_listener_thread: overrides.data_sharing_listener_thread,
+  }),
+});
+
+export const createGroupDataQos = (overrides: any = {}) => ({
+  value:
+    overrides.value !== undefined
+      ? overrides.value
+      : qosSettings.groupDataQos.default.value,
+});
+
+export const createTopicDataQos = (overrides: any = {}) => ({
+  value:
+    overrides.value !== undefined
+      ? overrides.value
+      : qosSettings.topicDataQos.default.value,
+});
+
+export const createUserDataQos = (overrides: any = {}) => ({
+  value:
+    overrides.value !== undefined
+      ? overrides.value
+      : qosSettings.userDataQos.default.value,
+});
+
+export const createDisablePositiveAcks = (overrides: any = {}) => ({
+  enabled:
+    overrides.enabled !== undefined
+      ? overrides.enabled
+      : qosSettings.disablePositiveAcks.default.enabled,
+  duration:
+    overrides.duration !== undefined
+      ? overrides.duration
+      : qosSettings.disablePositiveAcks.default.duration,
+});
+
+export const createEntityFactoryQos = (overrides: any = {}) => ({
+  autoenable_created_entities:
+    overrides.autoenable_created_entities !== undefined
+      ? overrides.autoenable_created_entities
+      : qosSettings.entityFactoryQos.default.autoenable_created_entities,
+});
+
+export const createWriterTimesConfig = (overrides: any = {}) => ({
+  initial_heartbeat_delay:
+    overrides.initial_heartbeat_delay ||
+    qosSettings.writerTimes.default.initial_heartbeat_delay,
+  heartbeat_period:
+    overrides.heartbeat_period ||
+    qosSettings.writerTimes.default.heartbeat_period,
+  nack_response_delay:
+    overrides.nack_response_delay ||
+    qosSettings.writerTimes.default.nack_response_delay,
+  nack_supression_duration:
+    overrides.nack_supression_duration ||
+    qosSettings.writerTimes.default.nack_supression_duration,
+});
+
+export const createReaderTimesConfig = (overrides: any = {}) => ({
+  initial_acknack_delay:
+    overrides.initial_acknack_delay ||
+    qosSettings.readerTimes.default.initial_acknack_delay,
+  heartbeat_response_delay:
+    overrides.heartbeat_response_delay ||
+    qosSettings.readerTimes.default.heartbeat_response_delay,
+});
+
+// Backward compatibility aliases
+export const createTimingConfig = createWriterTimesConfig;
+export const createReaderTimingConfig = createReaderTimesConfig;
+
+export const createWriterQosConfig = (overrides: any = {}) => ({
+  durability: overrides.durability || createDurabilityQos("VOLATILE"),
+  durabilityService:
+    overrides.durabilityService || createDurabilityServiceQos(),
+  deadline: overrides.deadline || createDeadlineQos(),
+  latencyBudget: overrides.latencyBudget || createLatencyBudgetQos(),
+  liveliness: overrides.liveliness || createLivelinessQos(),
+  reliability: overrides.reliability || createReliabilityQos("RELIABLE"),
+  lifespan: overrides.lifespan || createLifespanQos(),
+  ownership: overrides.ownership || createOwnershipQos("SHARED"),
+  ownershipStrength:
+    overrides.ownershipStrength || createOwnershipStrengthQos(0),
+  publishMode: overrides.publishMode || createPublishModeQos("SYNCHRONOUS"),
+  partition: overrides.partition || createPartitionQos(),
+  data_sharing:
+    overrides.data_sharing !== undefined
+      ? overrides.data_sharing
+      : createDataSharingQos(),
+  groupData:
+    overrides.groupData !== undefined
+      ? overrides.groupData
+      : createGroupDataQos(),
+  topicData:
+    overrides.topicData !== undefined
+      ? overrides.topicData
+      : createTopicDataQos(),
+  userData:
+    overrides.userData !== undefined
+      ? overrides.userData
+      : createUserDataQos(),
+  disable_heartbeat_piggyback:
+    overrides.disable_heartbeat_piggyback !== undefined
+      ? overrides.disable_heartbeat_piggyback
+      : qosSettings.disableHeartbeatPiggyback.default,
+  disablePositiveAcks:
+    overrides.disablePositiveAcks !== undefined
+      ? overrides.disablePositiveAcks
+      : createDisablePositiveAcks(),
+  entity_factory:
+    overrides.entity_factory !== undefined
+      ? overrides.entity_factory
+      : overrides.entityFactoryQos !== undefined
+        ? overrides.entityFactoryQos
+        : createEntityFactoryQos(),
+});
+
+export const createReaderQosConfig = (overrides: any = {}) => ({
+  durability: overrides.durability || createDurabilityQos("VOLATILE"),
+  deadline: overrides.deadline || createDeadlineQos(),
+  latencyBudget: overrides.latencyBudget || createLatencyBudgetQos(),
+  liveliness: overrides.liveliness || createLivelinessQos(),
+  reliability: overrides.reliability || createReliabilityQos("RELIABLE"),
+  lifespan: overrides.lifespan || createLifespanQos(),
+  ownership: overrides.ownership || createOwnershipQos("SHARED"),
+  partition: overrides.partition || createPartitionQos(),
+  data_sharing:
+    overrides.data_sharing !== undefined
+      ? overrides.data_sharing
+      : createDataSharingQos(),
+  groupData:
+    overrides.groupData !== undefined
+      ? overrides.groupData
+      : createGroupDataQos(),
+  topicData:
+    overrides.topicData !== undefined
+      ? overrides.topicData
+      : createTopicDataQos(),
+  userData:
+    overrides.userData !== undefined
+      ? overrides.userData
+      : createUserDataQos(),
+  disable_heartbeat_piggyback:
+    overrides.disable_heartbeat_piggyback !== undefined
+      ? overrides.disable_heartbeat_piggyback
+      : qosSettings.disableHeartbeatPiggyback.default,
+  disablePositiveAcks:
+    overrides.disablePositiveAcks !== undefined
+      ? overrides.disablePositiveAcks
+      : createDisablePositiveAcks(),
+  entity_factory:
+    overrides.entity_factory !== undefined
+      ? overrides.entity_factory
+      : overrides.entityFactoryQos !== undefined
+        ? overrides.entityFactoryQos
+        : createEntityFactoryQos(),
+});
+
+// Helper function to create DataWriter profile
+export const createDataWriterProfile = (name: string, overrides: any = {}) => {
+  const profile: any = {
+    "@_profile_name": name,
+    "@_is_default_profile": overrides.is_default_profile || false,
+    topic: overrides.topic || {
+      historyQos: createHistoryQos("KEEP_LAST", 1000),
+      resourceLimitsQos: createResourceLimitsQos({
+        max_samples: 5000,
+        max_instances: 10,
+        max_samples_per_instance: 400,
+        allocated_samples: 100,
+        extra_samples: 1,
+      }),
+    },
+    qos: overrides.qos || createWriterQosConfig(),
+    times: overrides.times || createWriterTimesConfig(),
+    unicastLocatorList: overrides.unicastLocatorList || [],
+    multicastLocatorList: overrides.multicastLocatorList || [],
+    external_unicast_locators: overrides.external_unicast_locators || [],
+    ignore_non_matching_locators:
+      overrides.ignore_non_matching_locators !== undefined
+        ? overrides.ignore_non_matching_locators
+        : false,
+    historyMemoryPolicy: overrides.historyMemoryPolicy || "PREALLOCATED",
+    propertiesPolicy: overrides.propertiesPolicy || createPropertiesPolicy(),
+    userDefinedID:
+      overrides.userDefinedID !== undefined ? overrides.userDefinedID : -1,
+    entityID: overrides.entityID !== undefined ? overrides.entityID : -1,
+    // Explicit defaults so they appear in profiles
+    expects_inline_qos:
+      overrides.expects_inline_qos !== undefined
+        ? overrides.expects_inline_qos
+        : true,
+    matchedSubscribersAllocation:
+      overrides.matchedSubscribersAllocation || createMatchedSubscribersAllocation(),
+  };
+
+  // Add optional fields only if provided
+  if (overrides.matchedSubscribersAllocation) {
+    profile.matchedSubscribersAllocation =
+      overrides.matchedSubscribersAllocation;
+  }
+
+  return profile;
+};
+
+// Helper function to create DataReader profile
+export const createDataReaderProfile = (name: string, overrides: any = {}) => {
+  const profile: any = {
+    "@_profile_name": name,
+    "@_is_default_profile": overrides.is_default_profile || false,
+    topic: overrides.topic || {
+      historyQos: createHistoryQos("KEEP_LAST", 1000),
+      resourceLimitsQos: createResourceLimitsQos({
+        max_samples: 5000,
+        max_instances: 10,
+        max_samples_per_instance: 400,
+        allocated_samples: 100,
+        extra_samples: 1,
+      }),
+    },
+    qos: overrides.qos || createReaderQosConfig(),
+    times: overrides.times || createReaderTimesConfig(),
+    unicastLocatorList: overrides.unicastLocatorList || [],
+    multicastLocatorList: overrides.multicastLocatorList || [],
+    external_unicast_locators: overrides.external_unicast_locators || [],
+    ignore_non_matching_locators:
+      overrides.ignore_non_matching_locators !== undefined
+        ? overrides.ignore_non_matching_locators
+        : false,
+    expects_inline_qos:
+      overrides.expects_inline_qos !== undefined
+        ? overrides.expects_inline_qos
+        : true,
+    historyMemoryPolicy: overrides.historyMemoryPolicy || "PREALLOCATED",
+    propertiesPolicy: overrides.propertiesPolicy || createPropertiesPolicy(),
+    userDefinedID:
+      overrides.userDefinedID !== undefined ? overrides.userDefinedID : -1,
+    entityID: overrides.entityID !== undefined ? overrides.entityID : -1,
+    matchedPublishersAllocation:
+      overrides.matchedPublishersAllocation || createMatchedPublishersAllocation(),
+  };
+
+  // Add optional fields only if provided
+  if (overrides.matchedPublishersAllocation) {
+    profile.matchedPublishersAllocation = overrides.matchedPublishersAllocation;
+  }
+
+  return profile;
+};
+
+// Default profiles
+export const defaultDataWriterProfile =
+  createDataWriterProfile("default_datawriter");
+export const defaultDataReaderProfile =
+  createDataReaderProfile("default_datareader");
 
 export const topicProfileStructure = {
   attributes: {
