@@ -1,35 +1,72 @@
-# DDS FORGE
+# DDS Forge
 
-A modern, web-based configuration editor for Data Distribution Service (DDS) implementations. Create, edit, and validate DDS configuration files with an intuitive user interface.
+**🌐 Live Application:** [https://ddsforge.zenita.ai/](https://ddsforge.zenita.ai/)
 
-![DDS FORGE](public/logo.png)
+A modern, web-based configuration editor for Data Distribution Service (DDS) implementations. Create, edit, and validate DDS configuration files with an intuitive interface. Runs entirely in your browser; no data leaves your device.
+
+![DDS Forge](public/logo.png)
+
+---
+
+## About
+
+DDS Forge is a free, browser-based DDS XML configuration generator and editor for CycloneDDS and Fast DDS. It supports both vendor formats and never stores or uploads your files.
+
+---
+
+## Quick Start (in the browser)
+
+1. Create: Choose CycloneDDS or Fast DDS.
+2. Upload or Import: Drag & Drop an existing XML (full or partial); it will be parsed into editable sections.
+3. Configure: Adjust profiles, domains, transport settings, logs, and more visually.
+4. Preview XML: Preview your vendor-compliant file. Optionally enable "Minimal output (non-defaults only)" to show only changed values.
+5. Download XML: Set a filename and download.
+
+---
 
 ## Features
 
+- No Install, No Login, No Storage (files stay local)
+- Vendor Neutral: switch between CycloneDDS and Fast DDS
+- Create from scratch or import existing XML/JSON
+- Visual editor with real-time validation
+- Live preview and Minimal Output Mode
+- Split-screen interface
+- Drag & Drop upload with visual feedback
+- Modified field highlighting
+- Works offline after first load (PWA-capable)
+
 ### Supported DDS Implementations
 
-- **FastDDS** (eProsima Fast DDS) - Complete profile and settings management
-- **CycloneDX** (Eclipse CycloneDDS) - Domain and transport
+- Fast DDS (eProsima) — complete profile and settings management
+- CycloneDDS (Eclipse) — domain and transport
 
-### Core Functionality
+---
 
-- 🚀 **Create from Scratch** - Start with default configurations for any supported DDS vendor
-- 📁 **Import Existing** - Upload and edit existing XML/JSON configuration files
-- ✏️ **Visual Editor** - Form-based editing with real-time validation
-- 👀 **Live Preview** - Preview generated XML/JSON before downloading
-- ✅ **Validation** - Built-in schema validation for all supported formats
-- 💾 **Export** - Download your configurations as properly formatted files
-- 🔄 **Reset Functionality** - Revert to original or default configurations
+## Tips
 
-### Advanced Features
+- Use Reset to start fresh without reloading the page.
+- Keep XML naming conventions consistent for topics and profiles.
+- Download when done — there is no auto‑save.
+- Works offline after the first load.
 
-- **Split-screen Interface** - Efficient editing with two-column layout
-- **Drag & Drop Upload** - Easy file import with visual feedback
-- **Real-time Validation** - Immediate feedback on configuration errors
-- **Modified Field Highlighting** - Visual indicators for changed values
-- **Minimal Output Mode** - Export only non-default values for cleaner configs
+---
 
-## Getting Started
+## Limitations
+
+- Currently supports CycloneDDS and Fast DDS only.
+- No validation for vendor-specific extensions outside supported schema.
+- No simulation or live DDS connectivity.
+
+---
+
+## Support & Feedback
+
+- **GitHub Discussions**: [https://github.com/Eight-Vectors/ddsforge/discussions](https://github.com/Eight-Vectors/ddsforge/discussions)
+
+---
+
+## Development
 
 ### Prerequisites
 
@@ -38,19 +75,17 @@ A modern, web-based configuration editor for Data Distribution Service (DDS) imp
 
 ### Installation
 
-1. Install dependencies:
-
 ```bash
 npm install
 ```
 
-2. Start the development server:
+### Start the development server
 
 ```bash
 npm run dev
 ```
 
-3. Open your browser to `http://localhost:5173`
+Open `http://localhost:5173`
 
 ### Building for Production
 
@@ -58,104 +93,67 @@ npm run dev
 npm run build
 ```
 
-The built files will be in the `dist` directory.
+Output is in `dist/`.
 
-## Usage
+### Available Scripts
 
-### Creating a New Configuration
+- `npm run dev` — Start development server
+- `npm run build` — Build for production
+- `npm run preview` — Preview production build
+- `npm run lint` — Run ESLint
 
-1. Choose your DDS vendor (FastDDS, CycloneDDS)
-2. Fill in the configuration parameters using the form interface
-3. Preview your configuration to ensure it's correct
-4. Download the generated XML/JSON file
-
-### Editing an Existing Configuration
-
-1. Click "Upload Existing Configuration"
-2. Drag and drop your XML/JSON file or click to browse
-3. Edit the loaded configuration using the visual form
-4. Preview and download your updated configuration
-
-### Configuration Validation
-
-- Real-time validation as you type
-- Schema-based validation for all supported DDS vendors
-- Clear error messages and guidance
-- Preview mode with validation results
-
-## Project Structure
+### Project Structure
 
 ```
 src/
 ├── components/          # React components
-│   ├── ui/             # Reusable UI components (Radix UI)
+│   ├── ui/              # Reusable UI components (Radix UI)
 │   ├── FastDDSProfileEditor.tsx
 │   ├── FastDDSProfileCreator.tsx
 │   ├── FormField.tsx
 │   ├── FileUpload.tsx
 │   └── ...
-├── schemas/            # DDS schema definitions
+├── schemas/             # DDS schema definitions
 │   ├── fastdds-schema.ts
 │   ├── cyclonedds-schema.ts
-├── utils/              # Utility functions
-│   ├── xmlParser.ts    # XML parsing and generation
-│   ├── jsonParser.ts   # JSON parsing for Zenoh
-│   ├── xmlValidator.ts # Validation logic
+├── utils/               # Utility functions
+│   ├── xmlParser.ts     # XML parsing and generation
+│   ├── jsonParser.ts    # JSON parsing for Zenoh
+│   ├── xmlValidator.ts  # Validation logic
 │   └── ...
-├── types/              # TypeScript type definitions
-└── App.tsx            # Main application component
+├── types/               # TypeScript type definitions
+└── App.tsx              # Main application component
 ```
 
-## Technology Stack
+### Technology Stack
 
-- **Frontend Framework**: React 19 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **UI Components**: Radix UI primitives
-- **XML Processing**: fast-xml-parser
-- **File Handling**: react-dropzone
-- **Icons**: Lucide React
+- Frontend Framework: React 19 with TypeScript
+- Build Tool: Vite
+- Styling: Tailwind CSS
+- UI Components: Radix UI primitives
+- XML Processing: fast-xml-parser
+- File Handling: react-dropzone
+- Icons: Lucide React
 
-## Development
+### Supported File Formats
 
-### Available Scripts
+- FastDDS
+  - Input: XML files with `<dds>` root element
+  - Output: FastDDS‑compatible XML configuration
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+- CycloneDDS
+  - Input: XML files with `<CycloneDDS>` or `<cyclonedds>` root element
+  - Output: CycloneDDS‑compatible XML configuration
 
-### Code Style
-
-This project uses ESLint with TypeScript rules for code quality and consistency.
-
-## Supported File Formats
-
-### FastDDS
-
-- **Input**: XML files with `<dds>` root element
-- **Output**: FastDDS-compatible XML configuration
-
-### CycloneDDS
-
-- **Input**: XML files with `<CycloneDDS>` or `<cyclonedds>` root element
-- **Output**: CycloneDDS-compatible XML configuration
-
-<!-- ## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request -->
+---
 
 ## License
 
-This project is proprietary software.
+Proprietary software.
 
 ## About
 
-Developed by [EightVectors](https://www.eightvectors.com/) - Specialists in DDS and real-time communication systems.
+Developed by [EightVectors](https://www.eightvectors.com/) — Specialists in DDS and real‑time communication systems.
 
 ---
 
