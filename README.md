@@ -97,7 +97,6 @@ src/
 ├── schemas/            # DDS schema definitions
 │   ├── fastdds-schema.ts
 │   ├── cyclonedds-schema.ts
-│   └── zenoh-schema.ts
 ├── utils/              # Utility functions
 │   ├── xmlParser.ts    # XML parsing and generation
 │   ├── jsonParser.ts   # JSON parsing for Zenoh
