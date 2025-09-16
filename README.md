@@ -149,7 +149,7 @@ src/
 
 ## License
 
-Proprietary software.
+MIT License — see `LICENSE` for details.
 
 ## About
 
@@ -157,4 +157,4 @@ Developed by [EightVectors](https://www.eightvectors.com/) — Specialists in DD
 
 ---
 
-**Copyright © 2025 EightVectors. All rights reserved.**
+**Copyright © 2025 EightVectors.**
