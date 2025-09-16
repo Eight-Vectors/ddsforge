@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormField } from "../types/dds";
 import { ProfileManager } from "./ProfileManager";
 import { FormField as FormFieldComponent } from "./FormField";
-import { type TypeDefinition, TypesEditor } from "./TypesEditor";
+import { type TypeDefinition } from "./TypesEditor";
 import { Card, CardHeader, CardTitle } from "./ui/card";
 import {
   xmlToFormFields,
   buildXML,
   mergeUploadedDataIntoSchema,
-  formFieldsToXML,
 } from "../utils/xmlParser";
 import { getDefaultProfileData } from "../utils/profileUtils";
 import { isFieldModified } from "../utils/fieldUtils";
@@ -48,21 +47,19 @@ export default function FastDDSProfileUploader({
     Map<string, FormField[]>
   >(new Map());
 
-  const [uploadedProfileKeys, setUploadedProfileKeys] = useState<Set<string>>(
-    new Set()
-  );
+  const [, setUploadedProfileKeys] = useState<Set<string>>(new Set());
   const [modifiedProfilesData, setModifiedProfilesData] = useState<
     Map<string, any>
   >(new Map());
-  const [modifiedLogData, setModifiedLogData] = useState<any>({});
+  const [modifiedLogData] = useState<any>({});
 
-  const [originalUploadedData, setOriginalUploadedData] = useState<
+  const [, setOriginalUploadedData] = useState<
     Map<string, any>
   >(new Map());
 
-  const [logFields, setLogFields] = useState<FormField[]>([]);
+  const [, setLogFields] = useState<FormField[]>([]);
   const [typeDefinitions, setTypeDefinitions] = useState<TypeDefinition[]>([]);
-  const [originalLogFields, setOriginalLogFields] = useState<FormField[]>([]);
+  const [, setOriginalLogFields] = useState<FormField[]>([]);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [validationResult, setValidationResult] = useState<{

@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormField } from "../types/dds";
 import { ProfileManager } from "./ProfileManager";
 import { FormField as FormFieldComponent } from "./FormField";
-import { type TypeDefinition, TypesEditor } from "./TypesEditor";
+import { type TypeDefinition } from "./TypesEditor";
 import { Card, CardHeader, CardTitle } from "./ui/card";
-import { xmlToFormFields, buildXML, formFieldsToXML } from "../utils/xmlParser";
+import { xmlToFormFields, buildXML } from "../utils/xmlParser";
 import { isFieldModified, findFieldByPath } from "../utils/fieldUtils";
 import { getDefaultProfileData } from "../utils/profileUtils";
 import { FastDDSValidator } from "../utils/fastddsRules";
@@ -45,9 +45,9 @@ export default function FastDDSProfileCreator({
     Map<string, any>
   >(new Map());
 
-  const [modifiedLogData, setModifiedLogData] = useState<any>({});
-  const [logFields, setLogFields] = useState<FormField[]>([]);
-  const [originalLogFields, setOriginalLogFields] = useState<FormField[]>([]);
+  const [modifiedLogData] = useState<any>({});
+  const [, setLogFields] = useState<FormField[]>([]);
+  const [, setOriginalLogFields] = useState<FormField[]>([]);
   const [types, setTypes] = useState<TypeDefinition[]>([]);
   const [fieldValidationErrors] = useState<Record<string, string>>({});
   const [validationResult, setValidationResult] = useState<{
