@@ -153,7 +153,6 @@ export default function FastDDSProfileUploader({
               isDefault: p["@_is_default_profile"] === true,
             };
             parsedProfiles.push(profile);
-            // Track this profile type immediately
             uploadedProfileTypes.add(type);
 
             uploadedDataMap.set(`${type}_${profileName}`, p);
@@ -164,7 +163,6 @@ export default function FastDDSProfileUploader({
               ? mergeUploadedDataIntoSchema(p, schemaData)
               : p;
 
-            // Use nested structure - don't pass path prefix
             const fields = xmlToFormFields(mergedData);
 
             fieldsMap.set(`${type}_${profileName}`, fields);
@@ -173,18 +171,15 @@ export default function FastDDSProfileUploader({
       });
 
       // Track which profiles were loaded from uploaded data BEFORE adding defaults
-      // This is important to distinguish between uploaded and default profiles
       parsedProfiles.forEach((profile) => {
         uploadedProfileNames.add(`${profile.type}_${profile.name}`);
       });
 
       if (uploadedData.log) {
-        // Use nested structure
         const fields = xmlToFormFields(uploadedData.log);
         setLogFields(fields);
         setOriginalLogFields(JSON.parse(JSON.stringify(fields)));
       } else {
-        // Set defaults from schema
         const defaults = fastDDSSchema.dds.log;
         const fields = xmlToFormFields(defaults);
         setLogFields(fields);
@@ -209,7 +204,6 @@ export default function FastDDSProfileUploader({
       }
     }
 
-    // add default profiles that don't exist in uploaded data
     const defaultProfiles: Profile[] = [
       {
         name: "domainparticipant_factory_profile",
@@ -217,7 +211,7 @@ export default function FastDDSProfileUploader({
         isDefault: false,
       },
       { name: "default_participant", type: "participant", isDefault: true },
-      { name: "default_topic", type: "topic", isDefault: false }, // Changed to match schema
+      { name: "default_topic", type: "topic", isDefault: false },
       {
         name: "default_transport",
         type: "transport_descriptor",
@@ -373,7 +367,7 @@ export default function FastDDSProfileUploader({
   };
 
   const generateAndNotifyXML = useCallback(() => {
-    // Start from the uploaded data as baseline so preview reflects the file contents
+    // Start from the uploaded data as baseline 
     let data: any = {};
     if (uploadedData && typeof uploadedData === "object") {
       try {
@@ -521,7 +515,7 @@ export default function FastDDSProfileUploader({
       );
 
       if (index >= 0) {
-        // Ensure required attributes are present when updating existing entries
+        //required attributes are present when updating existing entries
         const baseAttrs: any = {
           "@_profile_name": profileName,
         };
@@ -590,10 +584,8 @@ export default function FastDDSProfileUploader({
     let fields: FormField[] = [];
 
     if (defaultData) {
-      // Use nested structure - don't pass path prefix
       fields = xmlToFormFields(defaultData);
     } else {
-      // Set default data for transport descriptors
       if (profile.type === "transport_descriptor") {
         const minimalData = {
           transport_id: profile.name,
@@ -601,7 +593,6 @@ export default function FastDDSProfileUploader({
           sendBufferSize: 65536,
           receiveBufferSize: 65536,
         };
-        // Use nested structure - don't pass path prefix
         fields = xmlToFormFields(minimalData);
       } else {
         fields = [];
@@ -779,7 +770,6 @@ export default function FastDDSProfileUploader({
       return; // Don't add these to modified data
     }
 
-    // for all fields (both uploaded and default profiles):
     // determine if the field should be included in modified data
     let shouldInclude = false;
 
@@ -847,7 +837,7 @@ export default function FastDDSProfileUploader({
         field.defaultValue !== undefined &&
         JSON.stringify(field.value) === JSON.stringify(field.defaultValue);
 
-      // consider empty values as "default" for removal purposes
+      // empty values as "default" for removal purposes
       const isEmpty =
         field.value === "" || field.value === null || field.value === undefined;
       const shouldRemoveWhenUnchecked = matchesDefault || isEmpty;
@@ -877,158 +867,6 @@ export default function FastDDSProfileUploader({
       }
     }
   };
-
-  // // Render modified configurations panel
-  // const renderModifiedConfigs = () => {
-  //   const modifiedConfigs: React.ReactElement[] = [];
-
-  //   // Add modified profiles
-  //   modifiedProfilesData.forEach((data, profileKey) => {
-  //     const [profileType, ...profileNameParts] = profileKey.split("_");
-  //     const profileName = profileNameParts.join("_");
-
-  //     const renderConfigItem = (
-  //       key: string,
-  //       value: any,
-  //       path: string[] = [],
-  //       indent: number = 0
-  //     ) => {
-  //       const fullPath = [...path, key];
-  //       const pathString = fullPath.join(".");
-
-  //       if (
-  //         typeof value === "object" &&
-  //         value !== null &&
-  //         !Array.isArray(value)
-  //       ) {
-  //         return (
-  //           <div key={pathString} style={{ marginLeft: `${indent * 20}px` }}>
-  //             <div className="font-medium text-sm text-gray-700 mt-2">
-  //               {key}:
-  //             </div>
-  //             {Object.entries(value).map(([k, v]) =>
-  //               renderConfigItem(k, v, fullPath, indent + 1)
-  //             )}
-  //           </div>
-  //         );
-  //       }
-
-  //       return (
-  //         <div
-  //           key={pathString}
-  //           className="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded group"
-  //           style={{ marginLeft: `${indent * 20}px` }}
-  //         >
-  //           <div className="flex-1 min-w-0">
-  //             <span className="text-sm text-gray-600">{key}:</span>
-  //             <span className="text-sm font-medium ml-2 break-words">
-  //               {Array.isArray(value)
-  //                 ? `[${value.length} items]`
-  //                 : String(value)}
-  //             </span>
-  //           </div>
-  //           <button
-  //             className="ml-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all duration-200 flex-shrink-0"
-  //             onClick={() => {
-  //               // Remove this field from modified data
-  //               const newModifiedData = new Map(modifiedProfilesData);
-  //               const profileData = newModifiedData.get(profileKey);
-  //               if (!profileData) return;
-
-  //               let current = profileData;
-  //               for (let i = 0; i < fullPath.length - 1; i++) {
-  //                 if (!current[fullPath[i]]) return;
-  //                 current = current[fullPath[i]];
-  //               }
-
-  //               delete current[fullPath[fullPath.length - 1]];
-
-  //               // Clean up empty objects
-  //               const cleanEmptyObjects = (obj: any): any => {
-  //                 Object.keys(obj).forEach((key) => {
-  //                   if (
-  //                     typeof obj[key] === "object" &&
-  //                     obj[key] !== null &&
-  //                     !Array.isArray(obj[key])
-  //                   ) {
-  //                     cleanEmptyObjects(obj[key]);
-  //                     if (Object.keys(obj[key]).length === 0) {
-  //                       delete obj[key];
-  //                     }
-  //                   }
-  //                 });
-  //                 return obj;
-  //               };
-
-  //               cleanEmptyObjects(profileData);
-
-  //               if (Object.keys(profileData).length === 0) {
-  //                 newModifiedData.delete(profileKey);
-  //               } else {
-  //                 newModifiedData.set(profileKey, profileData);
-  //               }
-
-  //               setModifiedProfilesData(newModifiedData);
-  //             }}
-  //             title="Remove this configuration"
-  //             type="button"
-  //           >
-  //             <X className="h-4 w-4" />
-  //           </button>
-  //         </div>
-  //       );
-  //     };
-
-  //     modifiedConfigs.push(
-  //       <Card key={profileKey} className="mb-3">
-  //         <CardHeader className="py-3">
-  //           <div className="flex items-center justify-between">
-  //             <CardTitle className="text-sm flex items-center gap-2">
-  //               <FileCode className="h-4 w-4" />
-  //               {profileName} ({profileType})
-  //             </CardTitle>
-  //           </div>
-  //         </CardHeader>
-  //         <div className="px-4 pb-3">
-  //           {Object.entries(data).map(([key, value]) =>
-  //             renderConfigItem(key, value)
-  //           )}
-  //         </div>
-  //       </Card>
-  //     );
-  //   });
-
-  //   // Add modified log configs
-  //   if (Object.keys(modifiedLogData).length > 0) {
-  //     modifiedConfigs.push(
-  //       <Card key="log-config" className="mb-3">
-  //         <CardHeader className="py-3">
-  //           <div className="flex items-center justify-between">
-  //             <CardTitle className="text-sm flex items-center gap-2">
-  //               <FileCode className="h-4 w-4" />
-  //               Log Configuration
-  //             </CardTitle>
-  //           </div>
-  //         </CardHeader>
-  //         <div className="px-4 pb-3">
-  //           <p className="text-sm text-gray-500">
-  //             Log configuration details...
-  //           </p>
-  //         </div>
-  //       </Card>
-  //     );
-  //   }
-
-  //   if (modifiedConfigs.length === 0) {
-  //     return (
-  //       <div className="text-center py-8 text-gray-500 text-sm">
-  //         No configurations modified yet
-  //       </div>
-  //     );
-  //   }
-
-  //   return <div>{modifiedConfigs}</div>;
-  // };
 
   const renderSelectedProfile = () => {
     if (!selectedProfile) {
@@ -1086,7 +924,6 @@ export default function FastDDSProfileUploader({
     );
   };
 
-  // base height: viewport - header (72px) - control bar (88px) - footer (88px) - Coming Soon div (64px)
   const baseHeight = "calc(100vh - 72px - 88px - 88px)";
 
   return (
@@ -1124,31 +961,11 @@ export default function FastDDSProfileUploader({
           >
             Types
           </button>
-          {/* <button
-            onClick={() => setActiveTab("modified")}
-            className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
-              activeTab === "modified"
-                ? "border-purple-500 text-purple-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            Modified Configs
-            {(modifiedProfilesData.size > 0 ||
-              Object.keys(modifiedLogData).length > 0) && (
-              <span className="absolute -top-1 -right-2 bg-purple-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {modifiedProfilesData.size +
-                  (Object.keys(modifiedLogData).length > 0 ? 1 : 0)}
-              </span>
-            )}
-          </button> */}
         </nav>
       </div>
 
-      {/* Content area - scrollable */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        {/* Alerts and notices - inside scrollable area */}
         <div className="flex-shrink-0">
-          {/* Validation alerts */}
           {validationResult &&
             (validationResult.errors.length > 0 ||
               validationResult.warnings.length > 0) && (
@@ -1239,169 +1056,6 @@ export default function FastDDSProfileUploader({
             </>
           )}
 
-          {/* {activeTab === "log" && (
-            <div className="flex-1 overflow-y-scroll p-6">
-              <div className="max-w-4xl mx-auto space-y-6">
-                {logFields.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                      <AlertCircle className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Log
-                    </h3>
-                    <p className="text-gray-600">No log fields available.</p>
-                  </div>
-                ) : (
-                  <>
-                    {logFields.map((field) => (
-                      <FormFieldComponent
-                        key={field.name}
-                        field={field}
-                        onChange={(path, value) => {
-                          const updateFieldValue = (
-                            fields: FormField[],
-                            targetPath: string[],
-                            newValue: any
-                          ): FormField[] => {
-                            return fields.map((f) => {
-                              if (
-                                JSON.stringify(f.path) ===
-                                JSON.stringify(targetPath)
-                              ) {
-                                return { ...f, value: newValue } as any;
-                              }
-                              if (
-                                f.type === "array" &&
-                                f.value &&
-                                Array.isArray(f.value)
-                              ) {
-                                const pathMatches = f.path.every(
-                                  (p, i) => p === targetPath[i]
-                                );
-                                if (
-                                  pathMatches &&
-                                  targetPath.length > f.path.length
-                                ) {
-                                  const arrayIndex = parseInt(
-                                    targetPath[f.path.length]
-                                  );
-                                  if (
-                                    !isNaN(arrayIndex) &&
-                                    arrayIndex < f.value.length
-                                  ) {
-                                    const itemPath = targetPath.slice(
-                                      f.path.length + 1
-                                    );
-                                    if (itemPath.length === 0) {
-                                      const newArray = [...f.value];
-                                      newArray[arrayIndex] = newValue;
-                                      return { ...f, value: newArray } as any;
-                                    } else {
-                                      const newArray = [...f.value];
-                                      let current = newArray[arrayIndex];
-                                      for (
-                                        let i = 0;
-                                        i < itemPath.length - 1;
-                                        i++
-                                      ) {
-                                        if (!current[itemPath[i]]) {
-                                          current[itemPath[i]] = {};
-                                        }
-                                        current = current[itemPath[i]];
-                                      }
-                                      current[itemPath[itemPath.length - 1]] =
-                                        newValue;
-                                      return { ...f, value: newArray } as any;
-                                    }
-                                  }
-                                }
-                              }
-                              if (f.fields && targetPath.length > f.path.length) {
-                                const pathMatches = f.path.every(
-                                  (p, i) => p === targetPath[i]
-                                );
-                                if (pathMatches) {
-                                  return {
-                                    ...f,
-                                    fields: updateFieldValue(
-                                      f.fields,
-                                      targetPath,
-                                      newValue
-                                    ),
-                                  } as any;
-                                }
-                              }
-                              return f as any;
-                            });
-                          };
-
-                          const updated = updateFieldValue(logFields, path, value);
-                          setLogFields(updated);
-                          const xml = formFieldsToXML(
-                            updated,
-                            true,
-                            "fastdds",
-                            undefined,
-                            originalLogFields
-                          );
-                          setModifiedLogData(xml);
-                        }}
-                        isModified={isFieldModified(field, originalLogFields)}
-                        originalFields={originalLogFields}
-                        excludeDefaults={true}
-                        onForceIncludeChange={(path, forceInclude) => {
-                          const apply = (
-                            fields: FormField[],
-                            targetPath: string[]
-                          ): FormField[] =>
-                            fields.map((f) => {
-                              if (
-                                JSON.stringify(f.path) ===
-                                JSON.stringify(targetPath)
-                              ) {
-                                return { ...f, forceInclude } as any;
-                              }
-                              if (f.fields && targetPath.length > f.path.length) {
-                                const pathMatches = f.path.every(
-                                  (p, i) => p === targetPath[i]
-                                );
-                                if (pathMatches) {
-                                  return {
-                                    ...f,
-                                    fields: apply(f.fields, targetPath),
-                                  } as any;
-                                }
-                              }
-                              return f as any;
-                            });
-                          const updated = apply(logFields, path);
-                          setLogFields(updated);
-                          const xml = formFieldsToXML(
-                            updated,
-                            true,
-                            "fastdds",
-                            undefined,
-                            originalLogFields
-                          );
-                          setModifiedLogData(xml);
-                        }}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "types" && (
-            <div className="flex-1 p-6 overflow-y-scroll">
-              <div className="max-w-4xl mx-auto">
-                <TypesEditor types={typeDefinitions} onChange={setTypeDefinitions} />
-              </div>
-            </div>
-          )} */}
-
 {activeTab === "log" && (
           <div className="flex-1 overflow-y-scroll p-6">
             <div className="max-w-4xl mx-auto">
@@ -1443,23 +1097,6 @@ export default function FastDDSProfileUploader({
             </div>
           </div>
         )}
-
-          {/* {activeTab === "modified" && (
-            <div className="flex-1 p-6 overflow-y-scroll">
-              <div className="max-w-4xl mx-auto">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Modified Configurations
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    These configurations will be included in the generated XML.
-                    Hover over any item and click the × button to remove it.
-                  </p>
-                </div>
-                {renderModifiedConfigs()}
-              </div>
-            </div>
-          )} */}
         </div>
       </div>
     </div>

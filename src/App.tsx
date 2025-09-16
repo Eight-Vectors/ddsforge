@@ -41,7 +41,6 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadFilename, setDownloadFilename] = useState<string>("");
-  // Always exclude defaults - this is now the default behavior
   const excludeDefaults = true;
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -182,27 +181,22 @@ function App() {
         ) {
           const pathMatches = field.path.every((p, i) => p === targetPath[i]);
           if (pathMatches && targetPath.length > field.path.length) {
-            // The path is like ["Domain", "Threads", "Thread", "0", "Scheduling", "Class"]
-            // We're updating the Thread array directly
             const arrayIndex = parseInt(targetPath[field.path.length]);
             if (!isNaN(arrayIndex) && field.value && field.value[arrayIndex]) {
-              const itemPath = targetPath.slice(field.path.length + 1); // Skip index
+              const itemPath = targetPath.slice(field.path.length + 1);
 
               if (itemPath.length === 0) {
-                // Direct update to Thread item
                 const newArray = [...field.value];
                 newArray[arrayIndex] = newValue;
                 return { ...field, value: newArray };
               } else {
-                // Update nested field within Thread item
                 const newArray = [...field.value];
                 newArray[arrayIndex] = JSON.parse(
                   JSON.stringify(newArray[arrayIndex])
-                ); // Deep clone the item
+                );
 
                 let current = newArray[arrayIndex];
 
-                // Navigate to the nested field
                 for (let i = 0; i < itemPath.length - 1; i++) {
                   if (!current[itemPath[i]]) {
                     current[itemPath[i]] = {};
@@ -210,17 +204,14 @@ function App() {
                   current = current[itemPath[i]];
                 }
 
-                // Set the value
                 current[itemPath[itemPath.length - 1]] = newValue;
 
                 return { ...field, value: newArray };
               }
             }
           }
-          // If we don't match the special case, fall through to regular array handling
         }
 
-        // Handle array fields with indexed paths
         if (
           field.type === "array" &&
           field.value &&
@@ -230,10 +221,8 @@ function App() {
           if (pathMatches && targetPath.length > field.path.length) {
             const arrayIndex = parseInt(targetPath[field.path.length]);
             if (!isNaN(arrayIndex) && arrayIndex < field.value.length) {
-              // This is updating a field within an array item
               const itemPath = targetPath.slice(field.path.length + 1);
               if (itemPath.length === 0) {
-                // Direct update to array item
                 const newArray = [...field.value];
                 newArray[arrayIndex] = newValue;
                 return { ...field, value: newArray };
@@ -275,8 +264,6 @@ function App() {
 
     const updatedFields = updateField([...fields], path, value);
 
-    // Force React to recognize the change by creating a new array
-    // This is crucial for nested updates in arrays
     const forceUpdate = JSON.parse(JSON.stringify(updatedFields));
     setFields(forceUpdate);
 
@@ -628,9 +615,7 @@ function App() {
             </Card>
           </div>
 
-          {/* Split-screen sections */}
           <div className="flex flex-1 overflow-hidden">
-            {/* Left Section - 50% */}
             <div className="w-1/2 p-6 overflow-y-auto border-r border-gray-200">
               <div className="space-y-6">
                 {leftSections.map((field) => (
@@ -650,7 +635,6 @@ function App() {
               </div>
             </div>
 
-            {/* Right Section - 50% */}
             <div className="w-1/2 p-6 overflow-y-auto">
               <div className="space-y-6">
                 {rightSections.map((field) => (
@@ -674,15 +658,11 @@ function App() {
       );
     }
 
-    // If we found sections to render in columns, use two-column layout
     if (sectionsToRender.length > 0) {
       return renderFieldsInColumns(sectionsToRender);
     }
 
-    // Otherwise, check if we need to look deeper in the structure
-    // This handles cases where the XML structure might be slightly different
     if (vendor === "cyclonedds" && fieldsToRender.length > 0) {
-      // Look for any top-level sections that should be displayed
       const allSections: FormField[] = [];
 
       const extractSections = (fields: FormField[]) => {
@@ -830,11 +810,6 @@ function App() {
             <HelpCircle className="w-5 h-5" />
           </Button>
         </div>
-        {/* {vendor && (
-          <p className="text-sm text-gray-500 mt-2">
-            Edit values below • Modified fields will be highlighted
-          </p>
-        )} */}
       </header>
 
       {!vendor ? (
@@ -878,20 +853,6 @@ function App() {
                         </p>
                       </div>
                     </Button>
-
-                    {/* <Button
-                      onClick={() => handleVendorSelect("zenoh")}
-                      variant="outline"
-                      className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-green-50 hover:border-green-300 transition-colors"
-                    >
-                      <FileText className="h-8 w-8 text-green-600" />
-                      <div className="text-center">
-                        <h3 className="font-semibold text-lg">Zenoh</h3>
-                        <p className="text-sm text-gray-600">
-                          Eclipse Zenoh Configuration
-                        </p>
-                      </div>
-                    </Button> */}
                   </div>
                 </CardContent>
               </Card>
@@ -938,8 +899,6 @@ function App() {
                 {vendor === "zenoh" ? ".json" : ".xml"}
               </span>
             </div>
-
-            {/* Minimal output is now the default behavior */}
 
             <Button
               onClick={handlePreviewClick}
@@ -993,7 +952,6 @@ function App() {
           </div>
 
           <div className="flex-1 flex overflow-auto">
-            {/* Configuration Form - Scrollable */}
             <div className="flex-1">
               {isLoading ? (
                 <div className="flex justify-center py-16">

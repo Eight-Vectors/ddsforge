@@ -42,8 +42,6 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
   };
 
   const updateItemField = (index: number, fieldPath: string[], value: any) => {
-    // This function updates a specific field within an array item
-    // It passes the full path up to the parent instead of just updating the array
     const fullPath = [...field.path, index.toString(), ...fieldPath];
     onChange(fullPath, value);
   };
@@ -125,10 +123,8 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
                     subField.name,
                   ];
 
-                  // For nested objects,  need to get the value from the nested path
                   let itemValue = item[subField.name];
 
-                  // For object fields,  need to ensure the nested fields also get the correct values
                   let currentField;
                   if (subField.type === "object" && subField.fields) {
                     // Recursively update nested fields with current values
@@ -169,18 +165,12 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
                       key={`${subField.name}-${index}`}
                       field={currentField}
                       onChange={(path, value) => {
-                        // Calculate the relative path from the array item
-                        // For example, if path is ["Domain", "Threads", "Thread", "0", "Scheduling", "Class"]
-                        // and the array field path is ["Domain", "Threads", "Thread"]
-                        // then the relative path from the item is ["Scheduling", "Class"]
                         const itemStartIndex = field.path.length + 1; // +1 to skip the index
                         const relativePath = path.slice(itemStartIndex);
 
                         if (relativePath.length > 0) {
-                          // Use the new updateItemField function that preserves the full path
                           updateItemField(index, relativePath, value);
                         } else {
-                          // This is a direct update to the item itself (shouldn't happen with objects)
                           updateItem(index, value);
                         }
                       }}

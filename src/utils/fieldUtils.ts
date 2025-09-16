@@ -4,7 +4,7 @@ export const isFieldModified = (
   currentField: FormField,
   originalFields: FormField[]
 ): boolean => {
-  // check if currentField or its path is valid
+  // Guard invalid field or path
   if (!currentField || !currentField.path) {
     return false;
   }
@@ -15,8 +15,7 @@ export const isFieldModified = (
     return true;
   }
 
-  // for object type fields, check if the value is actually different
-  // empty objects {} should be considered same as null/undefined
+  // If object field, treat {} as empty; not modified when both are empty
   if (currentField.type === "object" && currentField.fields) {
     const currentIsEmpty =
       !currentField.value ||
@@ -32,12 +31,11 @@ export const isFieldModified = (
     }
   }
 
-  //  handling for FastDDS default values
-  // when a field has never been modified, both values should be identical
+  // Compare normalized values
   const currentValue = currentField.value;
   const originalValue = originalField.value;
 
-  // handle null/undefined/empty string as equivalent for comparison
+  // Normalize null/undefined/empty string to null
   const normalizeValue = (val: any) => {
     if (val === null || val === undefined || val === "") return null;
     return val;
@@ -51,6 +49,7 @@ export const isFieldModified = (
   );
 };
 
+// Walk nested fields by name; returns undefined if any segment is missing
 export const findFieldByPath = (
   fields: FormField[],
   path: string[]

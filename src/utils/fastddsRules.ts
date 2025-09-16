@@ -14,7 +14,7 @@ export interface DependencyRule {
 
 export class FastDDSValidator {
   private rules: DependencyRule[] = [
-    // transport reference rule
+    // Transport reference rule
     {
       id: "transport-reference",
       name: "Transport Descriptor Reference",
@@ -28,13 +28,13 @@ export class FastDDSValidator {
 
         if (!config.profiles) return result;
 
-        // get all transport IDs
+        // Get all transport IDs
         const transportIds = new Set<string>();
         if (config.profiles.transport_descriptors) {
-          // handle the case where transport_descriptors contains transport_descriptor directly
+          // Support transport_descriptor nested under transport_descriptors
           const td = config.profiles.transport_descriptors.transport_descriptor;
           if (td) {
-            // check if transport_descriptor is an array or single object
+            // Allow array or single object
             const descriptors = Array.isArray(td) ? td : [td];
             descriptors.forEach((desc: any) => {
               if (desc.transport_id) {
@@ -42,7 +42,7 @@ export class FastDDSValidator {
               }
             });
           } else {
-            // try looking directly at transport_descriptors array
+            // Look directly at transport_descriptors array (legacy)
             const descriptors = Array.isArray(
               config.profiles.transport_descriptors
             )
@@ -50,7 +50,7 @@ export class FastDDSValidator {
               : [config.profiles.transport_descriptors];
 
             descriptors.forEach((desc: any) => {
-              // check multiple possible structures
+              // Handle multiple structures
               if (desc.transport_id) {
                 transportIds.add(desc.transport_id);
               } else if (desc.transport_descriptor?.transport_id) {
@@ -60,36 +60,35 @@ export class FastDDSValidator {
           }
         }
 
-        // check participant transports
+        // Only when useBuiltinTransports=false
         if (config.profiles.participant) {
           const participants = Array.isArray(config.profiles.participant)
             ? config.profiles.participant
             : [config.profiles.participant];
 
           participants.forEach((participant: any) => {
-            // only validate transport IDs if useBuiltinTransports is false
             if (
               participant.rtps?.useBuiltinTransports === false &&
               participant.rtps?.userTransports
             ) {
-              // handle the case where userTransports is wrapped in transport_id
+              // Support userTransports wrapped in transport_id
               let transportList;
               if (participant.rtps.userTransports.transport_id) {
-                // handle { transport_id: [...] } structure
+                // { transport_id: [...] }
                 transportList = Array.isArray(
                   participant.rtps.userTransports.transport_id
                 )
                   ? participant.rtps.userTransports.transport_id
                   : [participant.rtps.userTransports.transport_id];
               } else {
-                // handle direct array or single value
+                // Array or single value
                 transportList = Array.isArray(participant.rtps.userTransports)
                   ? participant.rtps.userTransports
                   : [participant.rtps.userTransports];
               }
 
               transportList.forEach((transportId: any) => {
-                // transportId should be a string at this point
+                // Normalize to string id
                 const id =
                   typeof transportId === "string"
                     ? transportId
@@ -103,7 +102,7 @@ export class FastDDSValidator {
               });
             }
 
-            // check if builtin transports disabled without user transports
+            // Flag useBuiltinTransports=false without userTransports
             if (participant.rtps?.useBuiltinTransports === false) {
               if (
                 !participant.rtps.userTransports ||
@@ -123,7 +122,7 @@ export class FastDDSValidator {
       },
     },
 
-    // empty locator list rule
+    // Empty locator list rule
     {
       id: "empty-locator",
       name: "Empty Locator List Format",
@@ -142,7 +141,7 @@ export class FastDDSValidator {
               );
               result.autoFixAvailable?.push("empty-locator");
             } else if (typeof list === "object" && !Array.isArray(list)) {
-              // check if it has a locator with value 0 or other non-empty value
+              // If it has a locator, ensure it is not an invalid non-empty value
               if (
                 list.locator !== undefined &&
                 list.locator !== null &&
@@ -198,7 +197,7 @@ export class FastDDSValidator {
         const fixLocatorList = (obj: any, key: string) => {
           if (obj && obj[key] !== undefined) {
             if (Array.isArray(obj[key]) && obj[key].length === 0) {
-              obj[key] = { locator: {} }; // Empty object instead of empty string
+              obj[key] = { locator: {} }; // Empty object locator
             }
           }
         };
@@ -244,7 +243,7 @@ export class FastDDSValidator {
           warnings: [],
         };
 
-        // Get all defined types
+        // Collect defined types
         const definedTypes = new Set<string>();
         if (config.types?.type) {
           const types = Array.isArray(config.types.type)
@@ -258,7 +257,7 @@ export class FastDDSValidator {
           });
         }
 
-        // Check topic type references
+        // Validate topic type references
         if (config.profiles?.topic) {
           const topics = Array.isArray(config.profiles.topic)
             ? config.profiles.topic
@@ -317,10 +316,10 @@ export class FastDDSValidator {
           });
         }
 
-        // Check compatibility for matching topic names
+        // Check compatibility
         writers.forEach((writer, writerName) => {
           readers.forEach((reader, readerName) => {
-            // Check reliability
+            // Reliability
             const writerReliability =
               writer.qos?.reliability?.kind || "BEST_EFFORT";
             const readerReliability =
@@ -335,7 +334,7 @@ export class FastDDSValidator {
               );
             }
 
-            // Check durability
+            // Durability
             const writerDurability = writer.qos?.durability?.kind || "VOLATILE";
             const readerDurability = reader.qos?.durability?.kind || "VOLATILE";
 

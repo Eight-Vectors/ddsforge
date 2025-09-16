@@ -16,12 +16,10 @@ export function validateZenohConfig(jsonContent: string): {
       }
     }
 
-    // Validate mode
     if (config.mode && !["router", "peer", "client"].includes(config.mode)) {
       errors.push("Mode must be one of: router, peer, client");
     }
 
-    // Validate endpoints format
     const validateEndpoints = (endpoints: any[], context: string) => {
       if (!Array.isArray(endpoints)) return;
 
@@ -81,9 +79,7 @@ export function validateZenohConfig(jsonContent: string): {
   return { isValid: errors.length === 0, errors };
 }
 
-// Validate endpoint format (basic validation)
 function isValidEndpoint(endpoint: string): boolean {
-  // Basic patterns for common endpoint formats
   const patterns = [
     /^tcp\/[^:]+:\d+$/, // tcp/hostname:port
     /^udp\/[^:]+:\d+$/, // udp/hostname:port
@@ -97,14 +93,12 @@ function isValidEndpoint(endpoint: string): boolean {
   return patterns.some((pattern) => pattern.test(endpoint));
 }
 
-// Validate multicast address format
 function isValidMulticastAddress(address: string): boolean {
   const parts = address.split(":");
   if (parts.length !== 2) return false;
 
   const [ip, port] = parts;
 
-  // Check port
   const portNum = parseInt(port);
   if (isNaN(portNum) || portNum < 1 || portNum > 65535) return false;
 

@@ -99,7 +99,6 @@ export default function FastDDSProfileCreator({
         return fields.map((field) => {
           const emptyField = { ...field };
 
-          // handle special fields that need to retain their values
           if (
             field.name === "@_profile_name" &&
             profile.type !== "transport_descriptor"
@@ -212,52 +211,6 @@ export default function FastDDSProfileCreator({
     }
   };
 
-  // // helper to delete a specific field from modified data
-  // const deleteModifiedField = (profileKey: string, path: string[]) => {
-  //   const newModifiedData = new Map(modifiedProfilesData);
-  //   const profileData = newModifiedData.get(profileKey);
-
-  //   if (!profileData) return;
-
-  //   let current = profileData;
-
-  //   // Navigate to parent of the field
-  //   for (let i = 0; i < path.length - 1; i++) {
-  //     if (!current[path[i]]) return;
-  //     current = current[path[i]];
-  //   }
-
-  //   // Delete the field
-  //   delete current[path[path.length - 1]];
-
-  //   // Clean up empty objects
-  //   const cleanEmptyObjects = (obj: any): any => {
-  //     Object.keys(obj).forEach((key) => {
-  //       if (
-  //         typeof obj[key] === "object" &&
-  //         obj[key] !== null &&
-  //         !Array.isArray(obj[key])
-  //       ) {
-  //         cleanEmptyObjects(obj[key]);
-  //         if (Object.keys(obj[key]).length === 0) {
-  //           delete obj[key];
-  //         }
-  //       }
-  //     });
-  //     return obj;
-  //   };
-
-  //   cleanEmptyObjects(profileData);
-
-  //   if (Object.keys(profileData).length === 0) {
-  //     newModifiedData.delete(profileKey);
-  //   } else {
-  //     newModifiedData.set(profileKey, profileData);
-  //   }
-
-  //   setModifiedProfilesData(newModifiedData);
-  // };
-
   const updateModifiedData = (
     profileKey: string,
     path: string[],
@@ -369,8 +322,6 @@ export default function FastDDSProfileCreator({
         // update modified data for XML generation
         const fieldPath = path;
 
-        // handling for @_profile_name, @_is_default_profile, transport_id and type
-        // these are handled separately in XML generation
         if (
           fieldPath[0] === "@_profile_name" ||
           fieldPath[0] === "@_is_default_profile" ||
@@ -391,12 +342,10 @@ export default function FastDDSProfileCreator({
         if (hasForceInclude) {
           shouldInclude = true;
         } else if (currentField && currentField.defaultValue !== undefined) {
-          // check against the field's defaultValue (schema default)
           const matchesDefault =
             JSON.stringify(value) === JSON.stringify(currentField.defaultValue);
           shouldInclude = !matchesDefault;
         } else {
-          // if no default value is defined, include if modified from original
           shouldInclude = isModified;
         }
         updateModifiedData(profileKey, fieldPath, value, shouldInclude);
@@ -666,180 +615,6 @@ export default function FastDDSProfileCreator({
     generateXML,
   ]);
 
-  // // render modified configurations panel
-  // const renderModifiedConfigs = () => {
-  //   const modifiedConfigs: React.ReactElement[] = [];
-
-  //   // add modified profiles
-  //   modifiedProfilesData.forEach((data, profileKey) => {
-  //     const [profileType, profileName] = profileKey.split("_");
-
-  //     const renderConfigItem = (
-  //       key: string,
-  //       value: any,
-  //       path: string[] = [],
-  //       indent: number = 0
-  //     ) => {
-  //       const fullPath = [...path, key];
-  //       const pathString = fullPath.join(".");
-
-  //       if (
-  //         typeof value === "object" &&
-  //         value !== null &&
-  //         !Array.isArray(value)
-  //       ) {
-  //         return (
-  //           <div key={pathString} style={{ marginLeft: `${indent * 20}px` }}>
-  //             <div className="font-medium text-sm text-gray-700 mt-2">
-  //               {key}:
-  //             </div>
-  //             {Object.entries(value).map(([k, v]) =>
-  //               renderConfigItem(k, v, fullPath, indent + 1)
-  //             )}
-  //           </div>
-  //         );
-  //       }
-
-  //       return (
-  //         <div
-  //           key={pathString}
-  //           className="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded group"
-  //           style={{ marginLeft: `${indent * 20}px` }}
-  //         >
-  //           <div className="flex-1 min-w-0">
-  //             <span className="text-sm text-gray-600">{key}:</span>
-  //             <span className="text-sm font-medium ml-2 break-words">
-  //               {Array.isArray(value)
-  //                 ? `[${value.length} items]`
-  //                 : String(value)}
-  //             </span>
-  //           </div>
-  //           <button
-  //             className="ml-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all duration-200 flex-shrink-0"
-  //             onClick={() => deleteModifiedField(profileKey, fullPath)}
-  //             title="Remove this configuration"
-  //             type="button"
-  //           >
-  //             <X className="h-4 w-4" />
-  //           </button>
-  //         </div>
-  //       );
-  //     };
-
-  //     modifiedConfigs.push(
-  //       <Card key={profileKey} className="mb-3">
-  //         <CardHeader className="py-3">
-  //           <div className="flex items-center justify-between">
-  //             <CardTitle className="text-sm flex items-center gap-2">
-  //               <FileCode className="h-4 w-4" />
-  //               {profileName} ({profileType})
-  //             </CardTitle>
-  //           </div>
-  //         </CardHeader>
-  //         <div className="px-4 pb-3">
-  //           {Object.entries(data).map(([key, value]) =>
-  //             renderConfigItem(key, value)
-  //           )}
-  //         </div>
-  //       </Card>
-  //     );
-  //   });
-
-  //   // Add modified log configs
-  //   if (Object.keys(modifiedLogData).length > 0) {
-  //     const renderLogItem = (
-  //       key: string,
-  //       value: any,
-  //       path: string[] = [],
-  //       indent: number = 0
-  //     ) => {
-  //       const fullPath = [...path, key];
-  //       const pathString = fullPath.join(".");
-
-  //       if (
-  //         typeof value === "object" &&
-  //         value !== null &&
-  //         !Array.isArray(value)
-  //       ) {
-  //         return (
-  //           <div key={pathString} style={{ marginLeft: `${indent * 20}px` }}>
-  //             <div className="font-medium text-sm text-gray-700 mt-2">
-  //               {key}:
-  //             </div>
-  //             {Object.entries(value).map(([k, v]) =>
-  //               renderLogItem(k, v, fullPath, indent + 1)
-  //             )}
-  //           </div>
-  //         );
-  //       }
-
-  //       return (
-  //         <div
-  //           key={pathString}
-  //           className="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded group"
-  //           style={{ marginLeft: `${indent * 20}px` }}
-  //         >
-  //           <div className="flex-1 min-w-0">
-  //             <span className="text-sm text-gray-600">{key}:</span>
-  //             <span className="text-sm font-medium ml-2 break-words">
-  //               {Array.isArray(value)
-  //                 ? `[${value.length} items]`
-  //                 : String(value)}
-  //             </span>
-  //           </div>
-  //           <button
-  //             className="ml-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all duration-200 flex-shrink-0"
-  //             onClick={() => {
-  //               const newLogData = { ...modifiedLogData };
-  //               let current = newLogData;
-
-  //               for (let i = 0; i < fullPath.length - 1; i++) {
-  //                 if (!current[fullPath[i]]) return;
-  //                 current = current[fullPath[i]];
-  //               }
-
-  //               delete current[fullPath[fullPath.length - 1]];
-  //               setModifiedLogData(newLogData);
-  //             }}
-  //             title="Remove this configuration"
-  //             type="button"
-  //           >
-  //             <X className="h-4 w-4" />
-  //           </button>
-  //         </div>
-  //       );
-  //     };
-
-  //     modifiedConfigs.push(
-  //       <Card key="log-config" className="mb-3">
-  //         <CardHeader className="py-3">
-  //           <div className="flex items-center justify-between">
-  //             <CardTitle className="text-sm flex items-center gap-2">
-  //               <FileCode className="h-4 w-4" />
-  //               Log Configuration
-  //             </CardTitle>
-  //           </div>
-  //         </CardHeader>
-  //         <div className="px-4 pb-3">
-  //           {Object.entries(modifiedLogData).map(([key, value]) =>
-  //             renderLogItem(key, value)
-  //           )}
-  //         </div>
-  //       </Card>
-  //     );
-  //   }
-
-  //   if (modifiedConfigs.length === 0) {
-  //     return (
-  //       <div className="text-center py-8 text-gray-500 text-sm">
-  //         No configurations modified yet
-  //       </div>
-  //     );
-  //   }
-
-  //   return <div>{modifiedConfigs}</div>;
-  // };
-
   const renderSelectedProfile = () => {
     if (!selectedProfile) {
       return (
@@ -935,23 +710,6 @@ export default function FastDDSProfileCreator({
           >
             Types
           </button>
-          {/* <button
-            onClick={() => setActiveTab("modified")}
-            className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
-              activeTab === "modified"
-                ? "border-purple-500 text-purple-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            Modified Configs
-            {(modifiedProfilesData.size > 0 ||
-              Object.keys(modifiedLogData).length > 0) && (
-              <span className="absolute -top-1 -right-2 bg-purple-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {modifiedProfilesData.size +
-                  (Object.keys(modifiedLogData).length > 0 ? 1 : 0)}
-              </span>
-            )}
-          </button> */}
         </nav>
       </div>
 
@@ -1077,110 +835,6 @@ export default function FastDDSProfileCreator({
             </div>
           </div>
         )}
-
-        {/* {activeTab === "log" && (
-          <div className="flex-1 overflow-y-scroll p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
-              {logFields.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                    <AlertCircle className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Log Configuration
-                  </h3>
-                  <p className="text-gray-600">No log fields available.</p>
-                </div>
-              ) : (
-                <>
-                  {logFields.map((field) => (
-                    <FormFieldComponent
-                      key={field.name}
-                      field={field}
-                      onChange={(path, value) => {
-                        const updated = updateFieldValue(logFields, path, value);
-                        setLogFields(updated);
-                        const xml = formFieldsToXML(
-                          updated,
-                          true,
-                          "fastdds",
-                          undefined,
-                          originalLogFields
-                        );
-                        setModifiedLogData(xml);
-                      }}
-                      isModified={isFieldModified(field, originalLogFields)}
-                      originalFields={originalLogFields}
-                      excludeDefaults={true}
-                      onForceIncludeChange={(path, forceInclude) => {
-                        const updateForce = (
-                          fields: FormField[],
-                          targetPath: string[]
-                        ): FormField[] => {
-                          return fields.map((f) => {
-                            if (
-                              JSON.stringify(f.path) ===
-                              JSON.stringify(targetPath)
-                            ) {
-                              return { ...f, forceInclude };
-                            }
-                            if (f.fields && targetPath.length > f.path.length) {
-                              const pathMatches = f.path.every(
-                                (p, i) => p === targetPath[i]
-                              );
-                              if (pathMatches) {
-                                return {
-                                  ...f,
-                                  fields: updateForce(f.fields, targetPath),
-                                } as any;
-                              }
-                            }
-                            return f;
-                          });
-                        };
-                        const updated = updateForce(logFields, path);
-                        setLogFields(updated);
-                        const xml = formFieldsToXML(
-                          updated,
-                          true,
-                          "fastdds",
-                          undefined,
-                          originalLogFields
-                        );
-                        setModifiedLogData(xml);
-                      }}
-                    />
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "types" && (
-          <div className="flex-1 p-6 overflow-y-scroll">
-            <div className="max-w-4xl mx-auto">
-              <TypesEditor types={types} onChange={setTypes} />
-            </div>
-          </div>
-        )} */}
-
-        {/* {activeTab === "modified" && (
-          <div className="flex-1 p-6 overflow-y-scroll">
-            <div className="max-w-4xl mx-auto">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Modified Configurations
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  These configurations will be included in the generated XML.
-                  Hover over any item and click the × button to remove it.
-                </p>
-              </div>
-              {renderModifiedConfigs()}
-            </div>
-          </div>
-        )} */}
       </div>
     </div>
   );

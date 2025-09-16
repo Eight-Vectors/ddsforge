@@ -1082,8 +1082,6 @@ export const memorySettings = {
     default: {
       preallocated_number: 0,
       dynamic: false,
-      // network_buffers_config is not supported in XML format
-      // Only available in C++ API
     },
     descriptions: {
       preallocated_number: "Initial number of send buffers to allocate",

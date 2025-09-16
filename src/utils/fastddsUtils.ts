@@ -4,7 +4,7 @@ export const getFastDDSDefault = (path: string[]): any => {
   let current: any = fastDDSSchema.dds;
   let adjustedPath = [...path];
 
-  // FastDDS schema has profile types under the profiles section
+  // Profile types live under profiles
   const profileTypes = [
     "participant",
     "publisher",
@@ -23,7 +23,7 @@ export const getFastDDSDefault = (path: string[]): any => {
 
   for (const key of adjustedPath) {
     if (current && typeof current === "object") {
-      // Handle arrays - get the first element as default
+      // If array, use first element
       if (Array.isArray(current)) {
         current = current[0];
       }
@@ -49,17 +49,17 @@ export const getFastDDSDefault = (path: string[]): any => {
   return undefined;
 };
 
-// Merges uploaded data with schema, ensuring all schema sections are included
+// Merge uploaded data with schema; include missing schema sections
 export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
   const result: any = {
     "@_xmlns":
       uploadedData["@_xmlns"] || schema["@_xmlns"] || "http://www.eprosima.com",
   };
 
-  // First, include all base sections from schema
+  // Include base sections from schema
   Object.keys(schema).forEach((key) => {
     if (!key.startsWith("@_")) {
-      // For each schema section, use uploaded data if available, otherwise use schema default
+      // Prefer uploaded data; fallback to schema default
       if (uploadedData[key] !== undefined) {
         result[key] = uploadedData[key];
       } else {
@@ -68,30 +68,30 @@ export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
     }
   });
 
-  // Handle profiles section specially
+  // Handle profiles section separately
   if (schema.profiles || uploadedData.profiles) {
     result.profiles = {
       "@_xmlns":
         uploadedData.profiles?.["@_xmlns"] || schema.profiles?.["@_xmlns"],
     };
 
-    // Handle profile types that should be arrays
+    // Normalize profile types to arrays
     const profileTypes = ["participant", "data_writer", "data_reader", "topic"];
 
     profileTypes.forEach((type) => {
       if (uploadedData.profiles?.[type]) {
-        // Ensure it's always an array
+        // Ensure arrays
         const profiles = Array.isArray(uploadedData.profiles[type])
           ? uploadedData.profiles[type]
           : [uploadedData.profiles[type]];
         result.profiles[type] = profiles;
       } else if (schema.profiles?.[type]) {
-        // Use schema default if no uploaded data
+        // Fallback to schema defaults
         result.profiles[type] = schema.profiles[type];
       }
     });
 
-    // Include any other profile properties
+    // Copy other profile properties
     if (uploadedData.profiles) {
       Object.keys(uploadedData.profiles).forEach((key) => {
         if (!key.startsWith("@_") && !profileTypes.includes(key)) {
@@ -101,7 +101,7 @@ export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
     }
   }
 
-  // Include any additional sections from uploaded data that aren't in schema
+  // Copy extra top-level sections from uploaded data
   Object.keys(uploadedData).forEach((key) => {
     if (!key.startsWith("@_") && result[key] === undefined) {
       result[key] = uploadedData[key];
@@ -114,11 +114,12 @@ export const smartMergeFastDDS = (uploadedData: any, schema: any): any => {
 export const isFastDDSDefault = (path: string[], value: any): boolean => {
   const lastPathElement = path[path.length - 1];
 
-  // Duration fields should stay together (sec/nanosec pairs)
+  // Keep sec/nanosec pairs together
   if (lastPathElement === "nanosec") {
     return false;
   }
 
+  // Don't drop sec when used with a duration context
   if (lastPathElement === "sec" && path.length >= 2) {
     const parentPath = path[path.length - 2];
     const durationContexts = [
@@ -138,47 +139,47 @@ export const isFastDDSDefault = (path: string[], value: any): boolean => {
     }
   }
 
-  // Important boolean fields that differ from default
+  // Preserve useBuiltinTransports=false
   if (lastPathElement === "useBuiltinTransports" && value === false) {
     return false;
   }
 
   const defaultValue = getFastDDSDefault(path);
 
-  // If no default found in schema, don't exclude it
+  // No schema default => treat as non-default
   if (defaultValue === undefined) {
     return false;
   }
 
-  // Handle null/undefined values
+  // Null/undefined handling
   if (value === null || value === undefined) {
     return defaultValue === null || defaultValue === undefined;
   }
 
-  // Handle special FastDDS values
+  // Special FastDDS values
   if (typeof value === "string") {
-    // Handle DURATION_INFINITY
+    // DURATION_INFINITY
     if (value === "DURATION_INFINITY" && defaultValue === "DURATION_INFINITY") {
       return true;
     }
 
-    // Handle numeric strings
+    // Numeric strings
     if (!isNaN(Number(value)) && typeof defaultValue === "number") {
       return Number(value) === defaultValue;
     }
   }
 
-  // Compare values (handle string/number conversions)
+  // Compare values (string/number conversions)
   if (typeof value === "number" && typeof defaultValue === "string") {
     return String(value) === defaultValue;
   }
 
-  // Handle boolean comparisons
+  // Boolean comparison
   if (typeof value === "boolean" || typeof defaultValue === "boolean") {
     return value === defaultValue;
   }
 
-  // Handle arrays
+  // Arrays
   if (Array.isArray(value) && Array.isArray(defaultValue)) {
     return JSON.stringify(value) === JSON.stringify(defaultValue);
   }

@@ -1,4 +1,4 @@
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
+import { XMLBuilder } from "fast-xml-parser";
 import type { DDSVendor, FormField } from "../types/dds";
 import { cycloneDDSSchema } from "../schemas/cyclonedds-schema";
 import { fastDDSSchema } from "../schemas/fastdds-schema";
@@ -7,56 +7,6 @@ import { isFieldModified } from "./fieldUtils";
 import { FastDDSValidator } from "./fastddsRules";
 import { transportSettings, rtpsSettings, propertiesPolicy as propertiesPolicySettings, logSettings } from "../schemas/fastdds-settings";
 
-export const parseXML = async (xmlContent: string): Promise<any> => {
-  try {
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "@_",
-      parseAttributeValue: true,
-      trimValues: true,
-      parseTagValue: true,
-      ignoreDeclaration: false,
-      removeNSPrefix: false,
-      processEntities: true,
-      preserveOrder: false,
-      alwaysCreateTextNode: false,
-      isArray: (name) => {
-        // Force certain elements to always be arrays
-        if (
-          name === "transport_descriptor" ||
-          name === "participant" ||
-          name === "data_writer" ||
-          name === "data_reader" ||
-          name === "topic" ||
-          name === "property" ||
-          name === "verify" ||
-          name === "option" ||
-          name === "verify_path" ||
-          name === "port" ||
-          name === "interfaceWhiteList" ||
-          name === "allowlist" ||
-          name === "blocklist" ||
-          name === "discoveryServersList" ||
-          name === "locator" ||
-          name === "Peer" ||
-          name === "NetworkInterface" ||
-          name === "IgnoredPartition" ||
-          name === "NetworkPartition" ||
-          name === "PartitionMapping" ||
-          name === "Thread"
-        ) {
-          return true;
-        }
-        return false;
-      },
-    });
-
-    return parser.parse(xmlContent);
-  } catch (error) {
-    throw error;
-  }
-};
-
 export const buildXML = (
   data: any,
   vendor: DDSVendor,
@@ -64,7 +14,7 @@ export const buildXML = (
 ): string => {
   let processedData = data;
 
-  // Run FastDDS validation and auto-fix
+  // FastDDS: validate
   if (vendor === "fastdds" && !options?.skipValidation) {
     const validator = new FastDDSValidator();
     const validationResult = validator.validateConfig(data);
@@ -75,9 +25,17 @@ export const buildXML = (
         warnings: validationResult.warnings,
       });
     }
+
+    if (options?.autoFix) {
+      try {
+        processedData = validator.autoFix(data, validationResult.autoFixAvailable);
+      } catch (e) {
+        console.warn("FastDDS auto-fix failed", e);
+      }
+    }
   }
 
-  // Preprocess data to handle self-closing tags and proper array formatting for CycloneDDS
+  // CycloneDDS: normalize structure
   if (vendor === "cyclonedds") {
     const preprocessForCycloneDDS = (obj: any, _parentKey?: string) => {
       if (typeof obj !== "object" || obj === null) return obj;
@@ -85,14 +43,13 @@ export const buildXML = (
       const processed: any = {};
       for (const [key, value] of Object.entries(obj)) {
         if (key === "Peer" && Array.isArray(value)) {
-          // Process Peer array to ensure empty elements for self-closing
+          // Keep Peer array as-is (self-close later)
           processed[key] = value.map((peer: any) => {
             if (
               typeof peer === "object" &&
               !peer["#text"] &&
               Object.keys(peer).every((k) => k.startsWith("@_"))
             ) {
-              // Element has only attributes, no text content
               return peer;
             }
             return peer;
@@ -102,19 +59,17 @@ export const buildXML = (
           typeof value === "object" &&
           value !== null
         ) {
-          // Handle Interfaces - check if it has NetworkInterface array or if attributes are directly on it
+          // Interfaces should contain NetworkInterface array
           const interfacesObj = value as any;
           if (
             interfacesObj.NetworkInterface &&
             Array.isArray(interfacesObj.NetworkInterface)
           ) {
-            // Correct structure - has NetworkInterface array
             processed[key] = interfacesObj.NetworkInterface;
           } else if (
             Object.keys(interfacesObj).some((k) => k.startsWith("@_"))
           ) {
-            // Incorrect structure - attributes directly on Interfaces
-            // Convert to NetworkInterface array with single element
+            // Attributes found directly on Interfaces: wrap into one NetworkInterface
             const networkInterface: any = {};
             Object.keys(interfacesObj).forEach((k) => {
               if (k.startsWith("@_")) {
@@ -130,17 +85,16 @@ export const buildXML = (
           typeof value === "object" &&
           value !== null
         ) {
-          // Handle Threads - should contain Thread array
+          // Threads should contain a Thread array
           const threadsObj = value as any;
 
-          // Check if attributes/content are directly on Threads (wrong structure)
+          // If attributes/content are on Threads, convert into single Thread item
           if (
             Object.keys(threadsObj).some(
               (k) =>
                 k.startsWith("@_") || k === "Scheduling" || k === "StackSize"
             )
           ) {
-            // Convert to Thread array with single element
             const thread: any = {};
             Object.keys(threadsObj).forEach((k) => {
               if (k !== "Thread") {
@@ -149,10 +103,8 @@ export const buildXML = (
             });
             processed[key] = { Thread: [thread] };
           } else if (threadsObj.Thread && Array.isArray(threadsObj.Thread)) {
-            // Correct structure - has Thread array
             processed[key] = threadsObj;
           } else if (Array.isArray(threadsObj)) {
-            // If Threads is already an array, wrap it properly
             processed[key] = { Thread: threadsObj };
           } else {
             processed[key] = preprocessForCycloneDDS(threadsObj, key);
@@ -164,7 +116,7 @@ export const buildXML = (
           typeof value === "object" &&
           value !== null
         ) {
-          // Handle partition containers
+          // Partition containers should contain arrays
           const partitionType =
             key === "IgnoredPartitions"
               ? "IgnoredPartition"
@@ -173,12 +125,11 @@ export const buildXML = (
               : "PartitionMapping";
           const partitionObj = value as any;
 
-          // Check if attributes are directly on the container (wrong structure)
           if (
             Object.keys(partitionObj).some((k) => k.startsWith("@_")) &&
             !partitionObj[partitionType]
           ) {
-            // Convert attributes on container to a single element in the array
+            // Attributes on container: wrap into one element
             const element: any = {};
             Object.keys(partitionObj).forEach((k) => {
               if (k.startsWith("@_")) {
@@ -190,7 +141,6 @@ export const buildXML = (
             partitionObj[partitionType] &&
             Array.isArray(partitionObj[partitionType])
           ) {
-            // Correct structure - has the appropriate array
             processed[key] = partitionObj[partitionType];
           } else {
             processed[key] = preprocessForCycloneDDS(partitionObj, key);
@@ -208,7 +158,7 @@ export const buildXML = (
     processedData = preprocessForCycloneDDS(processedData);
   }
 
-  // Preprocess for FastDDS to ensure correct nested structures (e.g., partition names)
+  // FastDDS: normalize nested structures
   if (vendor === "fastdds") {
     const preprocessForFastDDS = (obj: any): any => {
       if (obj === null || obj === undefined) return obj;
@@ -226,13 +176,12 @@ export const buildXML = (
             let normalizedNames: any = undefined;
 
             if (Array.isArray(namesValue)) {
-              // Array of strings: convert to { name: [...] }
+              // Array of strings => { name: [...] }
               if (namesValue.length === 0) {
                 normalizedNames = {};
               } else if (typeof namesValue[0] === "string") {
                 normalizedNames = { name: namesValue };
               } else {
-                // Array of objects - keep as is after recursion
                 normalizedNames = preprocessForFastDDS(namesValue);
               }
             } else if (typeof namesValue === "string") {
@@ -241,14 +190,13 @@ export const buildXML = (
               typeof namesValue === "object" &&
               namesValue !== null
             ) {
-              // If names is an object, ensure its 'name' is an array
+              // Ensure 'name' is an array
               const maybeName: any = (namesValue as any).name;
               if (Array.isArray(maybeName)) {
                 normalizedNames = { name: maybeName.map((n: any) => n) };
               } else if (typeof maybeName === "string") {
                 normalizedNames = { name: [maybeName] };
               } else {
-                // Fallback: recursively process
                 normalizedNames = preprocessForFastDDS(namesValue);
               }
             }
@@ -268,7 +216,7 @@ export const buildXML = (
           }
         }
 
-        // Recurse for other keys
+        // Recurse
         processed[key] = preprocessForFastDDS(value);
       }
 
@@ -282,7 +230,7 @@ export const buildXML = (
     ignoreAttributes: false,
     format: true,
     indentBy: "  ",
-    suppressEmptyNode: false, // Keep paired tags for empty elements
+    suppressEmptyNode: false, // Keep paired tags for empty nodes
     suppressBooleanAttributes: false,
     attributeNamePrefix: "@_",
     textNodeName: "#text",
@@ -352,7 +300,7 @@ export const buildXML = (
     );
     if (interfacesMatch) {
       const content = interfacesMatch[1];
-      // Extract all numbered elements
+      // Convert numbered tags to NetworkInterface
       const networkInterfaces: string[] = [];
       let match;
       const regex = /<(\d+)([^>]*?)(?:\/|>([\s\S]*?)<\/\1)>/g;
@@ -383,8 +331,7 @@ const getFieldDefaultValue = (
   key: string,
   currentValue: any
 ): any => {
-  // check if we're in a transport_descriptor context
-  // the path might include profile types or be nested
+  // Detect context for defaults
   const isTransportDescriptor = path.some(
     (segment) =>
       segment === "transport_descriptor" ||
@@ -396,11 +343,10 @@ const getFieldDefaultValue = (
     (segment) => segment === "participant" || segment.includes("participant")
   );
 
-  // Check if we're in rtps context within participant
+  // Inside participant.rtps
   const isInRtps = path.some((segment) => segment === "rtps");
 
-  // if we're in rtps context and looking at useBuiltinTransports,
-  // we're likely in a participant profile even if "participant" isn't in the path
+  // useBuiltinTransports may appear under rtps
   const isLikelyParticipantRtps = isInRtps && key === "useBuiltinTransports";
 
   if (isTransportDescriptor) {
@@ -410,30 +356,26 @@ const getFieldDefaultValue = (
     }
   }
 
-  // Handle participant-specific fields
+  // Participant-specific fields
   if (isParticipant) {
-    // Check rtps fields
     if (isInRtps && key in rtpsSettings.default) {
       return (rtpsSettings.default as any)[key];
     }
 
-    // Special case for name field in rtps
+    // Default name in rtps
     if (key === "name" && isInRtps) {
       return "Default Domain Participant";
     }
   }
 
-  // Default values based on type
+  // Primitive defaults
   if (typeof currentValue === "boolean") {
-    // For known boolean fields with true defaults
     if (
       key === "useBuiltinTransports" &&
       (isParticipant || isLikelyParticipantRtps)
     ) {
       return true;
     }
-    //  handling for transport descriptor boolean fields
-    // these fields have true as default regardless of path context
     if (key === "calculate_crc" || key === "check_crc") {
       return true;
     }
@@ -486,7 +428,7 @@ export const xmlToFormFields = (
 ): FormField[] => {
   const fields: FormField[] = [];
 
-  // Handle null or undefined data
+  // Handle null or non-object
   if (!data || typeof data !== "object") {
     return fields;
   }
@@ -496,7 +438,7 @@ export const xmlToFormFields = (
     value: any,
     currentPath: string[]
   ): FormField | null => {
-    // Skip certain keys
+    // Skip internal keys
     if (key === "_" || key === "?xml" || key === "#text") return null;
 
     if (
@@ -514,9 +456,8 @@ export const xmlToFormFields = (
       .toLowerCase()
       .replace(/(^|\s)\S/g, (l) => l.toUpperCase());
 
-    // Special handling for locator fields with empty content
+    // locator with empty value: provide template
     if (key === "locator" && value === "") {
-      // Provide template fields for empty locators
       const locatorTemplate = {
         udpv4: {
           address: "",
@@ -543,7 +484,7 @@ export const xmlToFormFields = (
           typeof value[0] === "number" ||
           typeof value[0] === "boolean");
 
-      // Special handling for interfaceWhiteList - define structure even when empty
+      // interfaceWhiteList: show item template even when empty
       if (key === "interfaceWhiteList") {
         const itemTemplate = {
           address: "",
@@ -562,7 +503,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Log consumers array: provide template with class select and property array
+      // log consumer list: class select and property array
       if (key === "consumer") {
         const consumerItemFields: FormField[] = [
           {
@@ -607,7 +548,7 @@ export const xmlToFormFields = (
           },
         ];
 
-        // Normalize incoming consumer array items to always have property as array
+        // Normalize: property must be array
         const normalizedValue = Array.isArray(value)
           ? value.map((item: any) => {
               const normalized = { ...item };
@@ -633,7 +574,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for interfaces allowlist and blocklist
+      // Interfaces allowlist
       if (key === "allowlist" && fieldPath.includes("interfaces")) {
         const itemTemplate = {
           name: "",
@@ -669,16 +610,13 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for userTransports - array of transport_id strings
+      // userTransports: array of transport_id
       if (key === "userTransports") {
         let transportIds: string[] = [];
 
-        // Handle different userTransports structures
         if (Array.isArray(value)) {
-          // Direct array of strings
           transportIds = value;
         } else if (typeof value === "object" && value !== null) {
-          // Object with transport_id property
           const transportObj = value as any;
           if (transportObj.transport_id) {
             if (Array.isArray(transportObj.transport_id)) {
@@ -688,7 +626,6 @@ export const xmlToFormFields = (
             }
           }
         } else if (typeof value === "string") {
-          // Single string value
           transportIds = [value];
         }
         return {
@@ -703,15 +640,13 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for Threads container in CycloneDDS
+      // CycloneDDS Threads container
       if (key === "Threads" && currentPath.some((p) => p === "Domain")) {
-        // Threads is an object that contains Thread array
         const threadsValue: any =
           typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { Thread: [] };
 
-        // Ensure Thread exists as an array
         if (!threadsValue.Thread) {
           threadsValue.Thread = [];
         } else if (!Array.isArray(threadsValue.Thread)) {
@@ -731,7 +666,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for Thread array in CycloneDDS
+      // CycloneDDS Thread array
       if (key === "Thread" && fieldPath.includes("Threads")) {
         const itemTemplate = {
           "@_name": "",
@@ -754,7 +689,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for Peer array in CycloneDDS
+      // CycloneDDS Peer array
       if (key === "Peer" && fieldPath.includes("Peers")) {
         const itemTemplate = {
           "@_Address": "",
@@ -773,12 +708,11 @@ export const xmlToFormFields = (
         };
       }
 
-      // handling for Interfaces in CycloneDDS - it should contain NetworkInterface array
+      // CycloneDDS Interfaces container
       if (
         key === "Interfaces" &&
         currentPath.some((p) => p === "General" || p === "Domain")
       ) {
-        // Interfaces is an object that contains NetworkInterface array
         const interfacesValue: any =
           typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
@@ -787,7 +721,6 @@ export const xmlToFormFields = (
         if (!interfacesValue.NetworkInterface) {
           interfacesValue.NetworkInterface = [];
         } else if (!Array.isArray(interfacesValue.NetworkInterface)) {
-          // If NetworkInterface exists but is not an array, convert it
           interfacesValue.NetworkInterface = [interfacesValue.NetworkInterface];
         }
 
@@ -804,7 +737,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // handling for NetworkInterface array in CycloneDDS
+      // CycloneDDS NetworkInterface array
       if (key === "NetworkInterface" && fieldPath.includes("Interfaces")) {
         const itemTemplate = {
           "@_name": "",
@@ -829,18 +762,16 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for IgnoredPartitions container in CycloneDDS
+      // CycloneDDS IgnoredPartitions container
       if (
         key === "IgnoredPartitions" &&
         currentPath.some((p) => p === "Partitioning")
       ) {
-        // IgnoredPartitions is an object that contains IgnoredPartition array
         const ignoredPartitionsValue: any =
           typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { IgnoredPartition: [] };
 
-        // Ensure IgnoredPartition exists as an array
         if (!ignoredPartitionsValue.IgnoredPartition) {
           ignoredPartitionsValue.IgnoredPartition = [];
         } else if (!Array.isArray(ignoredPartitionsValue.IgnoredPartition)) {
@@ -862,18 +793,16 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for NetworkPartitions container in CycloneDDS
+      // CycloneDDS NetworkPartitions container
       if (
         key === "NetworkPartitions" &&
         currentPath.some((p) => p === "Partitioning")
       ) {
-        // NetworkPartitions is an object that contains NetworkPartition array
         const networkPartitionsValue: any =
           typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { NetworkPartition: [] };
 
-        // Ensure NetworkPartition exists as an array
         if (!networkPartitionsValue.NetworkPartition) {
           networkPartitionsValue.NetworkPartition = [];
         } else if (!Array.isArray(networkPartitionsValue.NetworkPartition)) {
@@ -895,18 +824,16 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for PartitionMappings container in CycloneDDS
+      // CycloneDDS PartitionMappings container
       if (
         key === "PartitionMappings" &&
         currentPath.some((p) => p === "Partitioning")
       ) {
-        // PartitionMappings is an object that contains PartitionMapping array
         const partitionMappingsValue: any =
           typeof value === "object" && value !== null && !Array.isArray(value)
             ? value
             : { PartitionMapping: [] };
 
-        // Ensure PartitionMapping exists as an array
         if (!partitionMappingsValue.PartitionMapping) {
           partitionMappingsValue.PartitionMapping = [];
         } else if (!Array.isArray(partitionMappingsValue.PartitionMapping)) {
@@ -928,17 +855,15 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for IgnoredPartition array in CycloneDDS
+      // CycloneDDS IgnoredPartition array
       if (
         key === "IgnoredPartition" &&
         fieldPath.includes("IgnoredPartitions")
       ) {
-        // IgnoredPartition can be simple strings or objects with DCPSPartitionTopic attribute
         const hasPrimitiveValues =
           value.length > 0 && typeof value[0] === "string";
 
         if (hasPrimitiveValues) {
-          // Simple string array
           return {
             name: key,
             label,
@@ -947,10 +872,9 @@ export const xmlToFormFields = (
             defaultValue: [],
             required: false,
             path: fieldPath,
-            fields: [], // No fields for simple string array
+            fields: [],
           };
         } else {
-          // Object array with attributes
           const itemTemplate = {
             "@_DCPSPartitionTopic": "",
             "#text": "",
@@ -969,7 +893,7 @@ export const xmlToFormFields = (
         }
       }
 
-      //  handling for NetworkPartition array in CycloneDDS
+      // CycloneDDS NetworkPartition array
       if (
         key === "NetworkPartition" &&
         fieldPath.includes("NetworkPartitions")
@@ -993,7 +917,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for PartitionMapping array in CycloneDDS
+      // CycloneDDS PartitionMapping array
       if (
         key === "PartitionMapping" &&
         fieldPath.includes("PartitionMappings")
@@ -1016,16 +940,14 @@ export const xmlToFormFields = (
         };
       }
 
-      // Special handling for Library elements in Security section
+      // Security Library element
       if (
         key === "Library" &&
         (fieldPath.includes("AccessControl") ||
           fieldPath.includes("Authentication") ||
           fieldPath.includes("Cryptographic"))
       ) {
-        // Library can have text content and attributes
         if (typeof value === "string") {
-          // Simple string, convert to object structure
           return {
             name: key,
             label,
@@ -1090,10 +1012,8 @@ export const xmlToFormFields = (
             ],
           };
         } else if (typeof value === "object" && value !== null) {
-          // Already an object, process normally but ensure #text field is included
           const fields = xmlToFormFields(value, fieldPath);
 
-          // Find or add #text field
           let textField = fields.find((f) => f.name === "#text");
           if (!textField) {
             textField = {
@@ -1105,9 +1025,9 @@ export const xmlToFormFields = (
               required: false,
               path: [...fieldPath, "#text"],
             };
-            fields.unshift(textField); // Add at beginning
+            fields.unshift(textField);
           } else {
-            textField.label = "Library Name"; // Update label
+            textField.label = "Library Name";
           }
 
           return {
@@ -1123,16 +1043,14 @@ export const xmlToFormFields = (
         }
       }
 
-      // handling for discoveryServersList - contains locator objects
+      // discoveryServersList: contains locator objects
       if (key === "discoveryServersList") {
-        // Create a simpler structure - each item is a locator
         const itemTemplate = {
           udpv4: {
             address: "",
             port: 0,
           },
         };
-        // don't include array index in the field path template
         const fields = xmlToFormFields(itemTemplate, []);
         return {
           name: key,
@@ -1146,7 +1064,7 @@ export const xmlToFormFields = (
         };
       }
 
-      //  handling for other locator lists
+      // Locator lists
       if (
         key === "metatrafficUnicastLocatorList" ||
         key === "metatrafficMulticastLocatorList" ||
@@ -1156,7 +1074,6 @@ export const xmlToFormFields = (
         key === "unicastLocatorList" ||
         key === "multicastLocatorList"
       ) {
-        // these lists contain locator elements
         const itemTemplate = {
           locator: {
             udpv4: {
@@ -1165,7 +1082,6 @@ export const xmlToFormFields = (
             },
           },
         };
-        // don't include array index in the field path template
         const fields = xmlToFormFields(itemTemplate, []);
         return {
           name: key,
@@ -1179,7 +1095,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // external_unicast_locators list (udpv4/udpv6 with attributes)
+      // external_unicast_locators (udpv4/udpv6 with attributes)
       if (
         key === "external_unicast_locators" ||
         key === "default_external_unicast_locators"
@@ -1221,9 +1137,8 @@ export const xmlToFormFields = (
           : [],
       };
     } else if (typeof value === "object" && value !== null) {
-      //  handling for locator objects with empty string value
+      // locator object with empty content
       if (key === "locator" && Object.keys(value).length === 0) {
-        // Provide template fields for empty locators
         const locatorTemplate = {
           udpv4: {
             address: "",
@@ -1243,10 +1158,9 @@ export const xmlToFormFields = (
         };
       }
 
-      // FastDDS normalization: within data_sharing, normalize aliases and wrappers
+      // FastDDS normalization
       if (key === "data_sharing" && value && typeof value === "object") {
         const v: any = value as any;
-        // Prefer shared_dir in UI; merge legacy shm_directory into shared_dir then remove it
         if (v.shm_directory !== undefined) {
           if (v.shared_dir === undefined || v.shared_dir === "") {
             v.shared_dir = v.shm_directory;
@@ -1264,7 +1178,7 @@ export const xmlToFormFields = (
         }
       }
 
-      // FastDDS normalization: partition names may be wrapped as <names><name>...</name></names>
+      // FastDDS: partition names may be wrapped
       if (key === "partition" && value && typeof value === "object") {
         const v: any = value as any;
         if (
@@ -1282,9 +1196,8 @@ export const xmlToFormFields = (
         }
       }
 
-      // Ensure propertiesPolicy shows with a property array template even when empty
+      // propertiesPolicy: ensure array template even when empty
       if (key === "propertiesPolicy") {
-        // Normalize current value
         const propertiesNode: any =
           value && typeof value === "object" && (value as any).properties
             ? (value as any).properties
@@ -1301,7 +1214,6 @@ export const xmlToFormFields = (
           }
         }
 
-        // Template for one property item from settings
         const propertyItemTemplate = {
           name: propertiesPolicySettings.property.default.name,
           value: propertiesPolicySettings.property.default.value,
@@ -1343,7 +1255,7 @@ export const xmlToFormFields = (
         };
       }
 
-      // Normalize object case for external locator lists to array UI
+      // external locator lists: normalize object to array for UI
       if (
         key === "external_unicast_locators" ||
         key === "default_external_unicast_locators"
@@ -1454,13 +1366,11 @@ export const formFieldsToXML = (
     }
 
     if (excludeDefaults) {
-      // check if user has explicitly forced this field to be included
       if (field.forceInclude) {
-        // don't exclude this field, user wants it included
+        // keep
       } else {
-        // determine if we should exclude this field
         if (originalUploadedData) {
-          // uploaded file scenario: exclude defaults that weren't in uploaded data
+          // Uploaded file: drop defaults not present in uploaded data
           const wasInUploadedData = hasValueInUploadedXMLData(
             field.path,
             originalUploadedData
@@ -1479,7 +1389,7 @@ export const formFieldsToXML = (
             if (isDefault && !wasInUploadedData) return;
           }
         } else if (originalFields) {
-          // Created from scratch scenario: exclude unmodified defaults
+          // New file: drop defaults not modified by user
           const isModified = isFieldModified(field, originalFields);
           if (
             vendor === "cyclonedds" &&
@@ -1495,7 +1405,7 @@ export const formFieldsToXML = (
             if (isDefault && !isModified) return;
           }
         } else {
-          // Fallback: exclude all defaults (old behavior)
+          // Fallback: drop all defaults
           if (
             vendor === "cyclonedds" &&
             isSchemaDefault("cyclonedds", field.path, field.value)
@@ -1523,7 +1433,7 @@ export const formFieldsToXML = (
               const itemFields = field.fields!.map((subField) => {
                 let fieldValue = item[subField.name];
 
-                // For nested objects, we need to handle them recursively
+                // Nested objects: handle recursively
                 if (
                   subField.type === "object" &&
                   subField.fields &&
@@ -1542,9 +1452,7 @@ export const formFieldsToXML = (
                   };
                 }
 
-                // Special handling for FastDDS log consumer serialization:
-                // - Always include <class> inside each <consumer>
-                // - Always include <name> inside each <property> under <consumer>
+                // FastDDS log consumer: always include <class> and property <name>
                 let mappedSubField = {
                   ...subField,
                   value:
@@ -1555,13 +1463,11 @@ export const formFieldsToXML = (
 
                 if (vendor === "fastdds" && field.name === "consumer") {
                   if (subField.name === "class") {
-                    // Ensure <class> is emitted even if it matches default
                     mappedSubField = { ...mappedSubField, forceInclude: true };
                   } else if (
                     subField.name === "property" &&
                     Array.isArray(mappedSubField.fields)
                   ) {
-                    // Ensure each property item includes its <name>
                     mappedSubField = {
                       ...mappedSubField,
                       fields: mappedSubField.fields.map((f: any) =>
@@ -1586,22 +1492,19 @@ export const formFieldsToXML = (
             })
             .filter((item: any) => {
               return Object.keys(item).length > 0;
-            }); // Filter out empty objects
+            });
 
           if (mappedItems.length > 0 || field.forceInclude) {
-            // Special-case: FastDDS log consumer property array should emit objects with <name> and <value>
             if (
               vendor === "fastdds" &&
               field.name === "property" &&
               field.path.includes("consumer")
             ) {
-              // mappedItems are already objects from recursive mapping
               result[field.name] = mappedItems.map((it: any) => {
-                // Ensure both name and value keys exist if present in item
                 const out: any = {};
                 if (it.name !== undefined) out.name = it.name;
                 if (it.value !== undefined) out.value = it.value;
-                if (Object.keys(out).length === 0) return it; // fallback
+                if (Object.keys(out).length === 0) return it;
                 return out;
               });
             } else {
@@ -1610,14 +1513,12 @@ export const formFieldsToXML = (
           } else if (field.name === "Thread") {
           }
         } else {
-          // For simple arrays (not objects)
+          // Simple arrays
           const nonEmptyItems = field.value.filter(
             (item: any) => item !== null && item !== undefined && item !== ""
           );
           if (nonEmptyItems.length > 0 || field.forceInclude) {
-            //  handling for userTransports in FastDDS
             if (field.name === "userTransports" && vendor === "fastdds") {
-              // Convert array of strings to proper XML structure
               result[field.name] = {
                 transport_id: nonEmptyItems,
               };
@@ -1626,7 +1527,6 @@ export const formFieldsToXML = (
               field.name === "domain_ids" &&
               Array.isArray(nonEmptyItems)
             ) {
-              // Emit as <domain_ids><domainId>...</domainId></domain_ids>
               result[field.name] = {
                 domainId: nonEmptyItems,
               };
@@ -1635,7 +1535,6 @@ export const formFieldsToXML = (
               field.name === "names" &&
               Array.isArray(nonEmptyItems)
             ) {
-              // Emit partition names as <names><name>...</name></names>
               result[field.name] = {
                 name: nonEmptyItems,
               };
@@ -1646,19 +1545,17 @@ export const formFieldsToXML = (
         }
       }
     } else if (field.type === "object" && field.fields) {
-      // Initialize childFields
+      // Child fields
       let childFields = field.fields;
 
-      // Special handling for Threads object which contains Thread array
+      // Threads contains Thread array
       if (field.name === "Threads") {
-        // The Threads object should get its Thread array value from the child field
         const threadArrayField = field.fields?.find((f) => f.name === "Thread");
         if (
           threadArrayField &&
           threadArrayField.value &&
           threadArrayField.value.length > 0
         ) {
-          // Use the Thread field's value directly, not from the Threads object
           childFields = field.fields.map((childField) => {
             return {
               ...childField,
@@ -1674,7 +1571,6 @@ export const formFieldsToXML = (
           });
         }
       } else if (field.forceInclude && excludeDefaults) {
-        // Clone child fields and set forceInclude on all children
         childFields = field.fields.map((childField) => ({
           ...childField,
           forceInclude: true,
@@ -1689,14 +1585,13 @@ export const formFieldsToXML = (
         originalFields
       );
 
-      // Special handling for Library elements in Security
+      // Security Library: include only if any attribute is not default
       if (
         field.name === "Library" &&
         (field.path.includes("AccessControl") ||
           field.path.includes("Authentication") ||
           field.path.includes("Cryptographic"))
       ) {
-        // Check if Library has any non-default attributes
         const hasPath = subResult["@_path"] && subResult["@_path"] !== "";
         const defaultInit = field.path.includes("AccessControl")
           ? "init_access_control"
@@ -1716,9 +1611,7 @@ export const formFieldsToXML = (
           subResult["@_finalizeFunction"] &&
           subResult["@_finalizeFunction"] !== defaultFinalize;
 
-        // Include Library if any attribute is non-default
         if (hasPath || hasNonDefaultInit || hasNonDefaultFinalize) {
-          // Include all attributes when Library is present
           result[field.name] = {
             "@_path": subResult["@_path"] || "",
             "@_initFunction": subResult["@_initFunction"] || defaultInit,
@@ -1726,7 +1619,6 @@ export const formFieldsToXML = (
               subResult["@_finalizeFunction"] || defaultFinalize,
           };
         }
-        // Otherwise, don't include the Library field at all
       } else if (
         (field.name === "metatrafficMulticastLocatorList" ||
           field.name === "metatrafficUnicastLocatorList" ||
@@ -1737,10 +1629,10 @@ export const formFieldsToXML = (
           field.name === "multicastLocatorList") &&
         Object.keys(subResult).length === 0
       ) {
-        // This is an empty locator list - output the special format
+        // Empty locator list: output special format
         result[field.name] = { locator: {} };
       } else if (Object.keys(subResult).length > 0 || field.forceInclude) {
-        //  check for Security sections that only contain empty Library
+        // Skip empty Security sections
         if (
           (field.name === "AccessControl" ||
             field.name === "Authentication" ||
@@ -1750,7 +1642,7 @@ export const formFieldsToXML = (
           return;
         }
 
-        //  check for Security object that only contains empty subsections
+        // Skip empty Security object
         if (field.name === "Security") {
           const hasContent =
             Object.keys(subResult).length > 0 &&
@@ -1762,7 +1654,7 @@ export const formFieldsToXML = (
           }
         }
 
-        // FastDDS: ensure we only output shared_dir; convert legacy shm_directory if present
+        // FastDDS: prefer shared_dir and normalize kind
         if (vendor === "fastdds" && field.name === "data_sharing") {
           if (
             Object.prototype.hasOwnProperty.call(subResult, "shm_directory") &&
@@ -1786,7 +1678,6 @@ export const formFieldsToXML = (
 
         result[field.name] = subResult;
       } else {
-        // for Threads, check if the Thread field has values
         if (field.name === "Threads") {
           const threadField = field.fields?.find((f) => f.name === "Thread");
           if (
@@ -1794,10 +1685,9 @@ export const formFieldsToXML = (
             threadField.value &&
             threadField.value.length > 0
           ) {
-            // Process it again without excludeDefaults to ensure Thread is included
             const forceIncludeResult = formFieldsToXML(
               field.fields || [],
-              false, // Don't exclude defaults for this specific case
+              false,
               vendor,
               originalUploadedData,
               originalFields
@@ -1809,7 +1699,7 @@ export const formFieldsToXML = (
         }
       }
     } else if (field.type === "text") {
-      //  handling for empty locator in locator lists
+      // Empty locator item is handled by parent list
       if (
         field.name === "locator" &&
         field.value === "" &&
@@ -1824,7 +1714,6 @@ export const formFieldsToXML = (
           field.path[field.path.length - 2] === "unicastLocatorList" ||
           field.path[field.path.length - 2] === "multicastLocatorList")
       ) {
-        // Don't include empty string for locator - it will be handled by the parent
         return;
       }
       result[field.name] = field.value;
@@ -1833,7 +1722,6 @@ export const formFieldsToXML = (
       field.type === "number" ||
       field.type === "boolean"
     ) {
-      // Ensure non-text primitive-like fields are emitted (e.g., <class>, <name>)
       result[field.name] = field.value;
     }
   });
@@ -1841,40 +1729,21 @@ export const formFieldsToXML = (
   return result;
 };
 
-export const mergeWithDefaults = (data: any, defaults: any): any => {
-  const merged = { ...defaults };
-
-  Object.entries(data).forEach(([key, value]) => {
-    if (value !== null && value !== undefined) {
-      if (typeof value === "object" && !Array.isArray(value)) {
-        merged[key] = mergeWithDefaults(value, defaults[key] || {});
-      } else {
-        merged[key] = value;
-      }
-    }
-  });
-
-  return merged;
-};
-
 // Deep merge uploaded data into schema, with uploaded data taking precedence
 export const mergeUploadedDataIntoSchema = (
   uploadedData: any,
   schema: any
 ): any => {
-  // Start with uploaded data as base, then add missing fields from schema
-  const result = JSON.parse(JSON.stringify(uploadedData)); // Deep clone uploaded data
+  // Start with uploaded data, then add missing fields from schema
+  const result = JSON.parse(JSON.stringify(uploadedData));
 
-  // Function to add missing schema fields to uploaded data
   const addMissingFields = (target: any, schema: any, path: string[] = []) => {
     Object.keys(schema).forEach((key) => {
       const currentPath = [...path, key];
 
       if (!target.hasOwnProperty(key)) {
-        // Field exists in schema but not in uploaded data
         if (Array.isArray(schema[key]) && schema[key].length === 0) {
         } else {
-          // Add the schema field
           target[key] = JSON.parse(JSON.stringify(schema[key]));
         }
       } else if (
@@ -1882,7 +1751,6 @@ export const mergeUploadedDataIntoSchema = (
         !Array.isArray(target[key]) &&
         target[key] !== null
       ) {
-        // Recursively add missing fields to nested objects
         if (
           typeof schema[key] === "object" &&
           !Array.isArray(schema[key]) &&
@@ -1894,27 +1762,8 @@ export const mergeUploadedDataIntoSchema = (
     });
   };
 
-  // Add missing fields from schema to the uploaded data
   addMissingFields(result, schema);
   return result;
-};
-
-// Check if a value exists in the original uploaded data
-export const isInUploadedData = (
-  path: string[],
-  uploadedData: any
-): boolean => {
-  if (!uploadedData) return false;
-
-  let current = uploadedData;
-  for (const key of path) {
-    if (current && typeof current === "object" && key in current) {
-      current = current[key];
-    } else {
-      return false;
-    }
-  }
-  return true;
 };
 
 function hasValueInUploadedXMLData(path: string[], uploadedData: any): boolean {
@@ -1925,13 +1774,13 @@ function hasValueInUploadedXMLData(path: string[], uploadedData: any): boolean {
   let current = uploadedData;
   for (const key of path) {
     if (current && typeof current === "object") {
-      // handle XML attributes (keys starting with @_)
+      // Handle XML attributes (keys starting with @_)
       if (key.startsWith("@_") && key in current) {
         current = current[key];
       } else if (key in current) {
         current = current[key];
       } else {
-        // try to find the key case-insensitively for XML
+        // Try to match ignoring case (XML)
         const actualKey = Object.keys(current).find(
           (k) => k.toLowerCase() === key.toLowerCase() || k === key
         );

@@ -236,8 +236,6 @@ export const createSendBuffersConfig = (overrides: any = {}) => ({
     overrides.dynamic !== undefined
       ? overrides.dynamic
       : memorySettings.sendBuffersAllocation.default.dynamic,
-  //network_buffers_config is not supported in FastDDS XML format
-  // it's only available in the C++ API
 });
 
 export const createMatchedSubscribersAllocation = (overrides: any = {}) => ({
@@ -877,7 +875,6 @@ export const createDataWriterProfile = (name: string, overrides: any = {}) => {
     userDefinedID:
       overrides.userDefinedID !== undefined ? overrides.userDefinedID : -1,
     entityID: overrides.entityID !== undefined ? overrides.entityID : -1,
-    // Explicit defaults so they appear in profiles
     expects_inline_qos:
       overrides.expects_inline_qos !== undefined
         ? overrides.expects_inline_qos

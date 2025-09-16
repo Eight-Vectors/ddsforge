@@ -1,6 +1,5 @@
 import type { TypeDefinition } from "../components/TypesEditor";
 
-// Convert UI TypeDefinition array to Fast DDS XML-friendly object under dds.types
 export function typeDefinitionsToTypesXml(types: TypeDefinition[] | undefined) {
   if (!types || types.length === 0) return undefined;
 
@@ -130,7 +129,6 @@ export function typeDefinitionsToTypesXml(types: TypeDefinition[] | undefined) {
   };
 }
 
-// Parse uploaded types (dds.types) into UI TypeDefinition[]
 export function parseTypesFromObject(typesObj: any): TypeDefinition[] {
   if (!typesObj) return [];
   const typeArray = Array.isArray(typesObj.type) ? typesObj.type : typesObj.type ? [typesObj.type] : [];

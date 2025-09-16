@@ -11,9 +11,9 @@ export const cycloneDDSSchema = {
       Compatibility: {
         AssumeRtiHasPmdEndpoints: false,
         ExplicitlyPublishQosSetToDefault: false,
-        ManySocketsMode: "single", // Options: false, true, single, none, many
+        ManySocketsMode: "single", 
         ProtocolVersion: "2.5",
-        StandardsConformance: "lax", // Options: lax, strict, pedantic
+        StandardsConformance: "lax", 
       },
 
       // Discovery section
@@ -230,71 +230,3 @@ export const cycloneDDSSchema = {
     },
   },
 };
-
-/*
-
-          {
-            "@_name": "gc",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "recv",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "dq.builtins",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "lease",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "tev",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "fsm",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "xmit.CHAN",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-          {
-            "@_name": "dq.CHAN",
-            Scheduling: {
-              Class: "default",
-              Priority: "default",
-            },
-            StackSize: "default",
-          },
-*/
