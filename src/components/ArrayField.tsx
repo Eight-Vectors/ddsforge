@@ -24,7 +24,7 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
   const addItem = () => {
     const newItem =
       field.fields && field.fields.length > 0
-        ? createEmptyObject(field.fields)
+        ? { ...createEmptyObject(field.fields), __forceInclude: {} }
         : "";
     const newArray = [...(field.value || []), newItem];
     onChange(field.path, newArray);
@@ -148,6 +148,14 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
                           : subField.defaultValue,
                       path: itemPath,
                       fields: nestedFields,
+                      forceInclude:
+                        item?.__forceInclude &&
+                        Object.prototype.hasOwnProperty.call(
+                          item.__forceInclude,
+                          subField.name
+                        )
+                          ? item.__forceInclude[subField.name]
+                          : subField.forceInclude,
                     };
                   } else {
                     currentField = {
@@ -157,6 +165,14 @@ export const ArrayField: React.FC<ArrayFieldProps> = ({
                           ? itemValue
                           : subField.defaultValue,
                       path: itemPath,
+                      forceInclude:
+                        item?.__forceInclude &&
+                        Object.prototype.hasOwnProperty.call(
+                          item.__forceInclude,
+                          subField.name
+                        )
+                          ? item.__forceInclude[subField.name]
+                          : subField.forceInclude,
                     };
                   }
 

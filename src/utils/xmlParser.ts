@@ -323,6 +323,23 @@ export const buildXML = (
     }
   }
 
+  // FastDDS: Convert empty type elements to self-closing tags
+  if (vendor === "fastdds") {
+    xml = xml.replace(/<member([^>]*?)><\/member>/g, "<member$1/>");
+    
+    xml = xml.replace(/<enumerator([^>]*?)><\/enumerator>/g, "<enumerator$1/>");
+    
+    xml = xml.replace(/<bit_value([^>]*?)><\/bit_value>/g, "<bit_value$1/>");
+    
+    xml = xml.replace(/<typedef([^>]*?)><\/typedef>/g, "<typedef$1/>");
+    
+    xml = xml.replace(/<caseDiscriminator([^>]*?)><\/caseDiscriminator>/g, "<caseDiscriminator$1/>");
+    
+    xml = xml.replace(/<discriminator([^>]*?)><\/discriminator>/g, "<discriminator$1/>");
+    
+    xml = xml.replace(/<bitfield([^>]*?)><\/bitfield>/g, "<bitfield$1/>");
+  }
+
   return xml;
 };
 
@@ -331,6 +348,18 @@ const getFieldDefaultValue = (
   key: string,
   currentValue: any
 ): any => {
+  if (key === "use_default") {
+    // Default is true per FastDDS settings
+    return logSettings.default.use_default;
+  }
+
+  if (path.some((segment) => segment === "thread_settings")) {
+    const ts = logSettings.default.thread_settings;
+    if (key in ts) {
+      return (ts as any)[key];
+    }
+  }
+
   // Detect context for defaults
   const isTransportDescriptor = path.some(
     (segment) =>
@@ -346,7 +375,6 @@ const getFieldDefaultValue = (
   // Inside participant.rtps
   const isInRtps = path.some((segment) => segment === "rtps");
 
-  // useBuiltinTransports may appear under rtps
   const isLikelyParticipantRtps = isInRtps && key === "useBuiltinTransports";
 
   if (isTransportDescriptor) {

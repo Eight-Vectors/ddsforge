@@ -4,7 +4,6 @@ export const isFieldModified = (
   currentField: FormField,
   originalFields: FormField[]
 ): boolean => {
-  // Guard invalid field or path
   if (!currentField || !currentField.path) {
     return false;
   }
@@ -61,14 +60,29 @@ export const findFieldByPath = (
 
   for (let i = 0; i < path.length; i++) {
     const segment = path[i];
-    foundField = currentFields.find((f) => f.name === segment);
 
+    // Skip numeric array index segments (e.g., "0", "1");
+    // for arrays , traverse into the array's template fields.
+    const isIndex = /^\d+$/.test(segment);
+    if (isIndex) {
+      // do not change currentFields; the next segment should be a child field name
+      continue;
+    }
+
+    foundField = currentFields.find((f) => f.name === segment);
     if (!foundField) return undefined;
 
     if (i < path.length - 1) {
       if (foundField.fields) {
         currentFields = foundField.fields;
       } else {
+        // If the next segment is an index and the current field is an array,
+        // allow continuing (its template fields remain the same in currentFields)
+        const nextSegment = path[i + 1];
+        const nextIsIndex = nextSegment !== undefined && /^\d+$/.test(nextSegment);
+        if (nextIsIndex && foundField.type === ("array" as any)) {
+          continue;
+        }
         return undefined;
       }
     }

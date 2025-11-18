@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormField } from "../types/dds";
 import { ProfileManager } from "./ProfileManager";
 import { FormField as FormFieldComponent } from "./FormField";
-import { type TypeDefinition } from "./TypesEditor";
+import { TypesEditor, type TypeDefinition } from "./TypesEditor";
 import { Card, CardHeader, CardTitle } from "./ui/card";
 import {
   xmlToFormFields,
@@ -51,15 +51,15 @@ export default function FastDDSProfileUploader({
   const [modifiedProfilesData, setModifiedProfilesData] = useState<
     Map<string, any>
   >(new Map());
-  const [modifiedLogData] = useState<any>({});
+  const [modifiedLogData, setModifiedLogData] = useState<any>({});
 
   const [, setOriginalUploadedData] = useState<
     Map<string, any>
   >(new Map());
 
-  const [, setLogFields] = useState<FormField[]>([]);
+  const [logFields, setLogFields] = useState<FormField[]>([]);
   const [typeDefinitions, setTypeDefinitions] = useState<TypeDefinition[]>([]);
-  const [, setOriginalLogFields] = useState<FormField[]>([]);
+  const [originalLogFields, setOriginalLogFields] = useState<FormField[]>([]);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [validationResult, setValidationResult] = useState<{
@@ -614,6 +614,143 @@ export default function FastDDSProfileUploader({
     setSelectedProfile(profile);
   };
 
+  // Build log data while pruning defaults and empty structures 
+  const buildLogDataPruned = (fields: FormField[]): any => {
+    const build = (fs: FormField[]): any => {
+      const data: any = {};
+
+      fs.forEach((f) => {
+        if (f.type === "array" && Array.isArray(f.value)) {
+          if (f.fields && f.fields.length > 0) {
+            const items = f.value
+              .map((item: any) => {
+                let itemData: any = {};
+                let itemClassValue: any = undefined;
+
+                f.fields!.forEach((childField) => {
+                  const childVal = item[childField.name];
+
+                  if (childField.type === "array" && Array.isArray(childVal)) {
+                    if (childField.fields && childField.fields.length > 0) {
+                      const nestedItems = childVal
+                        .map((nestedItem: any) => {
+                          let nestedItemData: any = {};
+                          childField.fields!.forEach((nestedChildField) => {
+                            const nestedVal = nestedItem[nestedChildField.name];
+                            const nestedPerItemForced =
+                              nestedItem?.__forceInclude &&
+                              nestedItem.__forceInclude[nestedChildField.name] === true;
+                            const nestedInclude =
+                              nestedPerItemForced ||
+                              nestedChildField.forceInclude === true ||
+                              (nestedChildField.defaultValue !== undefined
+                                ? JSON.stringify(nestedVal) !==
+                                  JSON.stringify(nestedChildField.defaultValue)
+                                : nestedVal !== undefined && nestedVal !== "");
+                            if (nestedInclude) {
+                              nestedItemData[nestedChildField.name] = nestedVal;
+                            }
+                          });
+                          return nestedItemData;
+                        })
+                        .filter((ni: any) => Object.keys(ni).length > 0);
+
+                      if (nestedItems.length > 0 || childField.forceInclude) {
+                        itemData[childField.name] = nestedItems;
+                      }
+                    } else {
+                      if (childVal.length > 0 || childField.forceInclude) {
+                        itemData[childField.name] = childVal;
+                      }
+                    }
+                    return;
+                  }
+
+                  if (childField.fields && childField.fields.length > 0) {
+                    const nestedObj = build(childField.fields.map((cf) => ({
+                      ...cf,
+                      value:
+                        item[childField.name] !== undefined
+                          ? item[childField.name][cf.name]
+                          : undefined,
+                    })));
+                    if (Object.keys(nestedObj).length > 0 || childField.forceInclude) {
+                      itemData[childField.name] = nestedObj;
+                    }
+                    return;
+                  }
+
+                  if (childField.name === "class") {
+                    itemClassValue = childVal;
+                  }
+
+                  const childHasValue = childVal !== undefined && childVal !== "";
+                  const perItemForced =
+                    item?.__forceInclude &&
+                    item.__forceInclude[childField.name] === true;
+                  const childInclude =
+                    perItemForced ||
+                    childField.forceInclude === true ||
+                    (childField.defaultValue !== undefined
+                      ? JSON.stringify(childVal) !==
+                        JSON.stringify(childField.defaultValue)
+                      : childHasValue);
+
+                  if (childInclude) {
+                    itemData[childField.name] = childVal;
+                  }
+                });
+
+                if (
+                  f.name === "consumer" &&
+                  itemData.property &&
+                  !itemData.class &&
+                  itemClassValue !== undefined
+                ) {
+                  itemData.class = itemClassValue;
+                }
+
+                return itemData;
+              })
+              .filter((it: any) => Object.keys(it).length > 0);
+
+            if (items.length > 0 || f.forceInclude) {
+              data[f.name] = items;
+            }
+          } else {
+            if (f.value.length > 0 || f.forceInclude) {
+              data[f.name] = f.value;
+            }
+          }
+          return;
+        }
+
+        if (f.fields && f.fields.length > 0) {
+          const childObj = build(f.fields);
+          if (Object.keys(childObj).length > 0 || f.forceInclude) {
+            data[f.name] = childObj;
+          }
+          return;
+        }
+
+        const val = f.value;
+        const hasValue = val !== undefined && val !== "";
+        const include =
+          f.forceInclude === true ||
+          (f.defaultValue !== undefined
+            ? JSON.stringify(val) !== JSON.stringify(f.defaultValue)
+            : hasValue);
+        if (include) {
+          data[f.name] = val;
+        }
+      });
+
+      return data;
+    };
+
+    return build(fields);
+  };
+
   const handleProfileDelete = (profileName: string) => {
     const profileToDelete = profiles.find((p) => p.name === profileName);
     if (!profileToDelete) return;
@@ -798,6 +935,7 @@ export default function FastDDSProfileUploader({
 
     const profileKey = `${selectedProfile.type}_${selectedProfile.name}`;
     const currentFields = profileFieldsMap.get(profileKey) || [];
+    const originalFields = originalFieldsMap.get(profileKey) || [];
 
     const updateField = (
       fields: FormField[],
@@ -840,7 +978,8 @@ export default function FastDDSProfileUploader({
       // empty values as "default" for removal purposes
       const isEmpty =
         field.value === "" || field.value === null || field.value === undefined;
-      const shouldRemoveWhenUnchecked = matchesDefault || isEmpty;
+      const isReallyModified = isFieldModified(field as any, originalFields);
+      const shouldRemoveWhenUnchecked = matchesDefault || isEmpty || !isReallyModified;
 
       const fieldPath = path;
 
@@ -1005,26 +1144,6 @@ export default function FastDDSProfileUploader({
               </div>
             )}
 
-          <div className="p-4 bg-blue-50 border-b border-blue-200">
-            <div className="flex items-center space-x-2 text-sm text-blue-700">
-              <svg
-                className="w-4 h-4 flex-shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p>
-                <span className="font-medium">Coming Soon:</span> Support for
-                Log and Types profiles will be available in a
-                future update.
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Tab content */}
@@ -1058,20 +1177,181 @@ export default function FastDDSProfileUploader({
 
 {activeTab === "log" && (
           <div className="flex-1 overflow-y-scroll p-6">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                  <AlertCircle className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Log Configuration
-                </h3>
-                <p className="text-gray-600">
-                  Support for Log configuration is coming soon.
-                </p>
-                <p className="text-sm text-gray-500 mt-4">
-                  This feature will be available in a future release.
-                </p>
+            <div className="max-w-4xl mx-auto space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Log Configuration</CardTitle>
+                </CardHeader>
+              </Card>
+              <div className="space-y-6">
+                {logFields.map((field) => (
+                  <FormFieldComponent
+                    key={field.name}
+                    field={field}
+                    onChange={(path, value) => {
+                      // Helper function to update field values with proper array handling
+                      const updateFieldValue = (
+                        fields: FormField[],
+                        targetPath: string[],
+                        newValue: any
+                      ): FormField[] => {
+                        return fields.map((f) => {
+                          if (JSON.stringify(f.path) === JSON.stringify(targetPath)) {
+                            return { ...f, value: newValue };
+                          }
+
+                          if (f.type === "array" && f.value && Array.isArray(f.value)) {
+                            const pathMatches = f.path.every((p, i) => p === targetPath[i]);
+                            if (pathMatches && targetPath.length > f.path.length) {
+                              const arrayIndex = parseInt(targetPath[f.path.length]);
+                              if (!isNaN(arrayIndex) && arrayIndex < f.value.length) {
+                                const itemPath = targetPath.slice(f.path.length + 1);
+                                if (itemPath.length === 0) {
+                                  const newArray = [...f.value];
+                                  newArray[arrayIndex] = newValue;
+                                  return { ...f, value: newArray };
+                                } else {
+                                  const newArray = [...f.value];
+                                  let current = newArray[arrayIndex];
+
+                                  for (let i = 0; i < itemPath.length - 1; i++) {
+                                    if (!current[itemPath[i]]) {
+                                      current[itemPath[i]] = {};
+                                    }
+                                    current = current[itemPath[i]];
+                                  }
+
+                                  current[itemPath[itemPath.length - 1]] = newValue;
+                                  return { ...f, value: newArray };
+                                }
+                              }
+                            }
+                          }
+
+                          if (f.fields && targetPath.length > f.path.length) {
+                            const pathMatches = f.path.every((p, i) => p === targetPath[i]);
+                            if (pathMatches) {
+                              return {
+                                ...f,
+                                fields: updateFieldValue(f.fields, targetPath, newValue),
+                              };
+                            }
+                          }
+
+                          return f;
+                        });
+                      };
+
+                      const updatedFields = updateFieldValue([...logFields], path, value);
+                      setLogFields(updatedFields);
+
+                      // Update modified log data with pruning
+                      setModifiedLogData(buildLogDataPruned(updatedFields));
+                    }}
+                    isModified={isFieldModified(field, originalLogFields)}
+                    originalFields={originalLogFields}
+                    validationError={undefined}
+                    excludeDefaults={excludeDefaults}
+                    onForceIncludeChange={(path, forceInclude) => {
+                      const isIndex = (s: string) => /^\d+$/.test(s);
+
+                      const idxPos = path.findIndex(isIndex);
+                      if (idxPos > 0) {
+                        const updateNestedItemForce = (
+                          fields: FormField[],
+                          targetPath: string[]
+                        ): FormField[] => {
+                          const arrayRootPath = targetPath.slice(0, idxPos);
+                          const firstIndex = parseInt(targetPath[idxPos], 10);
+                          const rest = targetPath.slice(idxPos + 1);
+
+                          return fields.map((f) => {
+                            if (JSON.stringify(f.path) === JSON.stringify(arrayRootPath)) {
+                              if (!Array.isArray(f.value)) return f;
+                              const newArr = f.value.map((item: any, i: number) => {
+                                if (i !== firstIndex) return item;
+
+                                const setFlag = (obj: any, segs: string[]): any => {
+                                  if (segs.length === 1) {
+                                    const fieldName = segs[0];
+                                    const fi = { ...(obj.__forceInclude || {}) };
+                                    fi[fieldName] = forceInclude;
+                                    return { ...obj, __forceInclude: fi };
+                                  }
+
+                                  const [fieldName, maybeIndex, ...tail] = segs;
+                                  if (/^\d+$/.test(fieldName)) {
+                                    return obj;
+                                  }
+                                  const value = obj[fieldName];
+                                  if (Array.isArray(value) && maybeIndex !== undefined && /^\d+$/.test(maybeIndex)) {
+                                    const idx = parseInt(maybeIndex, 10);
+                                    const updatedArr = value.map((child: any, ci: number) => {
+                                      if (ci !== idx) return child;
+                                      return setFlag(child || {}, tail);
+                                    });
+                                    return { ...obj, [fieldName]: updatedArr };
+                                  }
+                                  const nextObj = setFlag(value || {}, [maybeIndex!, ...tail].filter(Boolean) as string[]);
+                                  return { ...obj, [fieldName]: nextObj };
+                                };
+
+                                return setFlag(item || {}, rest);
+                              });
+                              return { ...f, value: newArr };
+                            }
+                            if (f.fields && targetPath.length > f.path.length) {
+                              const prefix = f.path.every((p, i) => p === arrayRootPath[i]);
+                              if (prefix) {
+                                return {
+                                  ...f,
+                                  fields: updateNestedItemForce(f.fields, targetPath),
+                                };
+                              }
+                            }
+                            return f;
+                          });
+                        };
+
+                        const updated = updateNestedItemForce([...logFields], path);
+                        setLogFields(updated);
+                        setModifiedLogData(buildLogDataPruned(updated));
+                        return;
+                      }
+
+                      const updateFieldForceInclude = (
+                        fields: FormField[],
+                        targetPath: string[]
+                      ): FormField[] => {
+                        const pathsEqual = (a: string[], b: string[]) =>
+                          a.length === b.length &&
+                          a.every((seg, i) => seg === b[i] || (isIndex(seg) && isIndex(b[i])));
+
+                        const isPrefix = (a: string[], b: string[]) =>
+                          a.every((seg, i) => seg === b[i] || (isIndex(seg) && isIndex(b[i])));
+
+                        return fields.map((f) => {
+                          if (pathsEqual(f.path as any, targetPath)) {
+                            return { ...f, forceInclude };
+                          }
+                          if (f.fields && targetPath.length > f.path.length) {
+                            const pathMatches = isPrefix(f.path as any, targetPath);
+                            if (pathMatches) {
+                              return {
+                                ...f,
+                                fields: updateFieldForceInclude(f.fields, targetPath),
+                              };
+                            }
+                          }
+                          return f;
+                        });
+                      };
+                      const updatedFields = updateFieldForceInclude([...logFields], path);
+                      setLogFields(updatedFields);
+                      setModifiedLogData(buildLogDataPruned(updatedFields));
+                    }}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -1079,21 +1359,8 @@ export default function FastDDSProfileUploader({
 
         {activeTab === "types" && (
           <div className="flex-1 p-6 overflow-y-scroll">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                  <AlertCircle className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Types Configuration
-                </h3>
-                <p className="text-gray-600">
-                  Support for Types configuration is coming soon.
-                </p>
-                <p className="text-sm text-gray-500 mt-4">
-                  This feature will be available in a future release.
-                </p>
-              </div>
+            <div className="max-w-6xl mx-auto">
+              <TypesEditor types={typeDefinitions} onChange={setTypeDefinitions} />
             </div>
           </div>
         )}
