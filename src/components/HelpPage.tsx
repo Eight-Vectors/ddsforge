@@ -52,10 +52,10 @@ export function HelpPage({ onBack }: HelpPageProps) {
             </CardHeader>
             <CardContent>
               <p className="text-slate-700 leading-relaxed">
-                DDS Forge is a free, browser-based DDS XML config generator for
-                CycloneDDS & Fast DDS. It supports CycloneDDS and Fast DDS
-                formats, runs entirely in your browser, and never stores or
-                sends your data anywhere.
+                DDS Forge is a free, browser-based config generator and editor
+                for CycloneDDS, Fast DDS, and Zenoh. It supports DDS XML and
+                Zenoh JSON formats, runs entirely in your browser, and never
+                stores or sends your data anywhere.
               </p>
             </CardContent>
           </Card>
@@ -79,7 +79,8 @@ export function HelpPage({ onBack }: HelpPageProps) {
                     Create
                   </h3>
                   <p className="text-slate-600">
-                    Choose between CycloneDDS or Fast DDS and start configuring.
+                    Choose between CycloneDDS, Fast DDS, or Zenoh and start
+                    configuring from scratch.
                   </p>
                 </div>
               </div>
@@ -95,8 +96,8 @@ export function HelpPage({ onBack }: HelpPageProps) {
                   </h3>
                   <div className="text-slate-600 space-y-1">
                     <p>
-                      • Click Drag & Drop XML to load an existing (full or
-                      partial) DDS configuration.
+                      • Click Drag & Drop to load an existing DDS XML or Zenoh
+                      JSON configuration (full or partial).
                     </p>
                     <p>• The file will be parsed into editable sections.</p>
                   </div>
@@ -126,13 +127,13 @@ export function HelpPage({ onBack }: HelpPageProps) {
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                     <Eye className="w-4 h-4" />
-                    Preview XML
+                    Preview Config
                   </h3>
                   <p className="text-slate-600">
-                    Click Preview XML to preview your vendor-compliant
-                    configuration file. Choosing "Minimal output (non-defaults
-                    only)" will allow you to preview only the updated sections
-                    making it easy to verify the changes.
+                    Click Preview to preview your vendor-compliant configuration
+                    file (DDS XML or Zenoh JSON). Choosing "Minimal output
+                    (non-defaults only)" will allow you to preview only the
+                    updated sections making it easy to verify the changes.
                   </p>
                 </div>
               </div>
@@ -144,11 +145,12 @@ export function HelpPage({ onBack }: HelpPageProps) {
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                     <Download className="w-4 h-4" />
-                    Download XML
+                    Download Config
                   </h3>
                   <p className="text-slate-600">
                     Change the filename as per your preference. Click Download
-                    XML to save your vendor-compliant configuration file.
+                    to save your vendor-compliant configuration file (XML or
+                    JSON).
                   </p>
                 </div>
               </div>
@@ -214,7 +216,7 @@ export function HelpPage({ onBack }: HelpPageProps) {
                       Vendor Neutral
                     </h4>
                     <p className="text-sm text-slate-600">
-                      Switch between CycloneDDS and Fast DDS.
+                      Switch between CycloneDDS, Fast DDS, and Zenoh.
                     </p>
                   </div>
                 </div>
@@ -242,8 +244,8 @@ export function HelpPage({ onBack }: HelpPageProps) {
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-slate-700">
-                    Keep XML naming conventions consistent for topics and
-                    profiles.
+                    Keep naming conventions consistent for topics, profiles, and
+                    Zenoh configuration keys.
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
@@ -282,7 +284,7 @@ export function HelpPage({ onBack }: HelpPageProps) {
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
                   <p className="text-slate-700">
-                    Currently supports only CycloneDDS and Fast DDS.
+                    Currently supports only CycloneDDS, Fast DDS, and Zenoh.
                   </p>
                 </div>
                 <div className="flex items-start gap-3">

@@ -20,18 +20,27 @@ export function validateZenohConfig(jsonContent: string): {
       errors.push("Mode must be one of: router, peer, client");
     }
 
-    const validateEndpoints = (endpoints: any[], context: string) => {
-      if (!Array.isArray(endpoints)) return;
+    const validateEndpoints = (endpoints: any, context: string) => {
+      if (!endpoints) return;
 
-      endpoints.forEach((endpoint, index) => {
-        if (typeof endpoint !== "string") {
-          errors.push(`${context}[${index}] must be a string`);
-        } else if (!isValidEndpoint(endpoint)) {
-          errors.push(
-            `${context}[${index}] "${endpoint}" is not a valid endpoint format`
-          );
-        }
-      });
+      if (Array.isArray(endpoints)) {
+        endpoints.forEach((endpoint, index) => {
+          if (typeof endpoint !== "string") {
+            errors.push(`${context}[${index}] must be a string`);
+          } else if (!isValidEndpoint(endpoint)) {
+            errors.push(
+              `${context}[${index}] "${endpoint}" is not a valid endpoint format`
+            );
+          }
+        });
+        return;
+      }
+
+      if (typeof endpoints === "object") {
+        Object.entries(endpoints).forEach(([key, value]) => {
+          validateEndpoints(value, `${context}.${key}`);
+        });
+      }
     };
 
     if (config.connect?.endpoints) {
@@ -51,17 +60,38 @@ export function validateZenohConfig(jsonContent: string): {
     }
 
     // Validate timeout values
-    const validateTimeout = (value: any, path: string) => {
-      if (value !== undefined && value !== null) {
-        if (typeof value !== "number" || value < 0) {
-          errors.push(`${path} must be a positive number`);
+    const validateTimeout = (
+      value: any,
+      path: string,
+      allowNegativeOne = false
+    ) => {
+      if (value === undefined || value === null) return;
+
+      if (typeof value === "number") {
+        if (value < 0 && !(allowNegativeOne && value === -1)) {
+          errors.push(
+            `${path} must be a non-negative number${allowNegativeOne ? " or -1" : ""}`
+          );
         }
+        return;
       }
+
+      if (typeof value === "object") {
+        Object.entries(value).forEach(([key, nested]) =>
+          validateTimeout(nested, `${path}.${key}`, allowNegativeOne)
+        );
+        return;
+      }
+
+      errors.push(`${path} must be a number`);
     };
 
-    validateTimeout(config.connect?.timeout_ms, "connect.timeout_ms");
-    validateTimeout(config.listen?.timeout_ms, "listen.timeout_ms");
-    validateTimeout(config.queries_default_timeout, "queries_default_timeout");
+    validateTimeout(config.connect?.timeout_ms, "connect.timeout_ms", true);
+    validateTimeout(config.listen?.timeout_ms, "listen.timeout_ms", true);
+    validateTimeout(
+      config.queries_default_timeout,
+      "queries_default_timeout"
+    );
 
     // Validate transport settings
     if (config.transport?.unicast?.max_sessions !== undefined) {

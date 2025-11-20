@@ -30,6 +30,7 @@ import {
   Eye,
   AlertTriangle,
   HelpCircle,
+  Share2,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -148,6 +149,7 @@ function App() {
       setOriginalFastDDSData(null);
       setFastDDSCreatedFromScratch(true);
     } else if (selectedVendor === "zenoh") {
+      setUploadedZenohData(null);
       const schema = getZenohSchema();
       const formFields = jsonToFormFields(schema, schema);
       setFields(formFields);
@@ -294,6 +296,105 @@ function App() {
   };
 
   const handleForceIncludeChange = (path: string[], forceInclude: boolean) => {
+    const isIndexSegment = (segment: string) => /^\d+$/.test(segment);
+    const indexPos = path.findIndex(isIndexSegment);
+
+    const setForceFlagOnItem = (item: any, segments: string[]): any => {
+      if (segments.length === 0) {
+        return item;
+      }
+
+      if (segments.length === 1) {
+        const fieldName = segments[0];
+        const fi = { ...(item?.__forceInclude || {}) };
+        if (forceInclude) {
+          fi[fieldName] = true;
+        } else {
+          delete fi[fieldName];
+        }
+        const clone = { ...(item || {}) };
+        if (Object.keys(fi).length > 0) {
+          clone.__forceInclude = fi;
+        } else {
+          delete clone.__forceInclude;
+        }
+        return clone;
+      }
+
+      const [segment, ...rest] = segments;
+      if (segment === undefined) {
+        return item;
+      }
+
+      if (isIndexSegment(segment)) {
+        const idx = parseInt(segment, 10);
+        const arrayClone = Array.isArray(item) ? [...item] : [];
+        arrayClone[idx] = setForceFlagOnItem(arrayClone[idx] || {}, rest);
+        return arrayClone;
+      }
+
+      const clone = { ...(item || {}) };
+      const currentValue = clone[segment];
+
+      const nextIsIndex = rest.length > 0 && isIndexSegment(rest[0]);
+      if (nextIsIndex) {
+        const idx = parseInt(rest[0], 10);
+        const tail = rest.slice(1);
+        const existingArray = Array.isArray(currentValue)
+          ? [...currentValue]
+          : [];
+        existingArray[idx] = setForceFlagOnItem(existingArray[idx] || {}, tail);
+        clone[segment] = existingArray;
+        return clone;
+      }
+
+      clone[segment] = setForceFlagOnItem(currentValue || {}, rest);
+      return clone;
+    };
+
+    if (indexPos > 0) {
+      const arrayRootPath = path.slice(0, indexPos);
+      const targetIndex = parseInt(path[indexPos], 10);
+      const remainder = path.slice(indexPos + 1);
+
+      const updateNestedArray = (
+        fields: FormField[],
+        targetPath: string[]
+      ): FormField[] => {
+        return fields.map((field) => {
+          if (JSON.stringify(field.path) === JSON.stringify(arrayRootPath)) {
+            if (!Array.isArray(field.value) || isNaN(targetIndex)) {
+              return field;
+            }
+            const updatedArray = field.value.map((item: any, idx: number) => {
+              if (idx !== targetIndex) return item;
+              return setForceFlagOnItem(item || {}, remainder);
+            });
+            return { ...field, value: updatedArray };
+          }
+
+          if (field.fields && targetPath.length > field.path.length) {
+            const prefixMatches =
+              field.path.length <= arrayRootPath.length &&
+              field.path.every(
+                (segment, idx) => segment === arrayRootPath[idx]
+              );
+            if (prefixMatches) {
+              return {
+                ...field,
+                fields: updateNestedArray(field.fields, targetPath),
+              };
+            }
+          }
+          return field;
+        });
+      };
+
+      const updatedFields = updateNestedArray([...fields], path);
+      setFields(updatedFields);
+      return;
+    }
+
     const updateField = (
       fields: FormField[],
       targetPath: string[]
@@ -350,7 +451,7 @@ function App() {
     const content = generateXML();
     const isJSON = vendor === "zenoh";
     const mimeType = isJSON ? "application/json" : "text/xml";
-    const extension = isJSON ? ".json" : ".xml";
+    const extension = isJSON ? ".json5" : ".xml";
 
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -798,7 +899,7 @@ function App() {
             />
           </button>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            DDS XML config generator for CycloneDDS & Fast DDS
+            DDS Config Generator for CycloneDDS, Fast DDS & Zenoh
           </h1>
           <Button
             onClick={handleShowHelp}
@@ -850,6 +951,21 @@ function App() {
                         <h3 className="font-semibold text-lg">CycloneDDS</h3>
                         <p className="text-sm text-gray-600">
                           Eclipse CycloneDDS Configuration
+                        </p>
+                      </div>
+                    </Button>
+
+                    <Button
+                      onClick={() => handleVendorSelect("zenoh")}
+                      variant="outline"
+                      className="w-full h-auto flex flex-col items-center gap-3 p-6 hover:bg-green-50 hover:border-green-300 transition-colors"
+                      data-umami-event="Click Create Zenoh"
+                    >
+                      <Share2 className="h-8 w-8 text-green-600" />
+                      <div className="text-center">
+                        <h3 className="font-semibold text-lg">Zenoh</h3>
+                        <p className="text-sm text-gray-600">
+                          Zenoh JSON Configuration
                         </p>
                       </div>
                     </Button>

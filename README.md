@@ -6,15 +6,16 @@ A modern, web-based configuration editor for Data Distribution Service (DDS) imp
 
 ## Features
 
-### Supported DDS Implementations
+### Supported Implementations
 
-- **FastDDS** (eProsima Fast DDS) - Complete profile and settings management
+- **FastDDS** (EProsima Fast DDS) - Complete profile and settings management
 - **CycloneDX** (Eclipse CycloneDDS) - Domain and transport
+- **Zenoh** - JSON-based runtime configuration
 
 ### Core Functionality
 
-- 🚀 **Create from Scratch** - Start with default configurations for any supported DDS vendor
-- 📁 **Import Existing** - Upload and edit existing XML/JSON configuration files
+- 🚀 **Create from Scratch** - Start with default configurations for any supported DDS vendor or a fresh Zenoh JSON config
+- 📁 **Import Existing** - Upload and edit existing XML/JSON configuration files, including Zenoh JSON configs
 - ✏️ **Visual Editor** - Form-based editing with real-time validation
 - 👀 **Live Preview** - Preview generated XML/JSON before downloading
 - ✅ **Validation** - Built-in schema validation for all supported formats
@@ -64,15 +65,15 @@ The built files will be in the `dist` directory.
 
 ### Creating a New Configuration
 
-1. Choose your DDS vendor (FastDDS, CycloneDDS)
+1. Choose your target system (FastDDS, CycloneDDS, or Zenoh)
 2. Fill in the configuration parameters using the form interface
 3. Preview your configuration to ensure it's correct
-4. Download the generated XML/JSON file
+4. Download the generated XML/JSON file (including Zenoh JSON when applicable)
 
 ### Editing an Existing Configuration
 
 1. Click "Upload Existing Configuration"
-2. Drag and drop your XML/JSON file or click to browse
+2. Drag and drop your XML/JSON file or click to browse (supports DDS XML and Zenoh JSON)
 3. Edit the loaded configuration using the visual form
 4. Preview and download your updated configuration
 
@@ -141,13 +142,18 @@ This project uses ESLint with TypeScript rules for code quality and consistency.
 - **Input**: XML files with `<CycloneDDS>` or `<cyclonedds>` root element
 - **Output**: CycloneDDS-compatible XML configuration
 
-<!-- ## Contributing
+### Zenoh
+
+- **Input**: JSON configuration files following Zenoh config structure
+- **Output**: Validated and updated Zenoh JSON configuration
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request -->
+5. Open a Pull Request
 
 ## License
 

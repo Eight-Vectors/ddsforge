@@ -57,6 +57,7 @@ export function jsonToFormFields(
 
     let fieldType: FormField["type"];
     let fieldValue = value !== undefined ? value : schemaValue;
+    fieldValue = normalizeFieldValue(key, fieldValue, schemaValue);
 
     if (fieldValue === null || fieldValue === undefined) {
       fieldType = "text";
@@ -87,7 +88,7 @@ export function jsonToFormFields(
 
     if (fieldType === "object" && fieldValue !== null) {
       field.fields = jsonToFormFields(
-        value || {},
+        fieldValue || {},
         schemaValue || {},
         currentPath,
         label
@@ -95,7 +96,34 @@ export function jsonToFormFields(
     }
 
     if (fieldType === "array") {
-      field.value = fieldValue || [];
+      const resolvedArray = Array.isArray(fieldValue) ? fieldValue : [];
+      field.value = JSON.parse(JSON.stringify(resolvedArray));
+
+      let templateSource =
+        Array.isArray(schemaValue) && schemaValue.length > 0
+          ? schemaValue[0]
+          : null;
+
+      if (
+        !templateSource &&
+        Array.isArray(resolvedArray) &&
+        resolvedArray.length > 0
+      ) {
+        templateSource = resolvedArray[0];
+      }
+
+      if (
+        templateSource &&
+        typeof templateSource === "object" &&
+        !Array.isArray(templateSource)
+      ) {
+        field.fields = jsonToFormFields(
+          templateSource,
+          templateSource,
+          currentPath,
+          label
+        );
+      }
     }
 
     if (isSelectField(currentPath)) {
@@ -117,70 +145,206 @@ export function formFieldsToJSON(
 ): any {
   const result: any = {};
 
-  fields.forEach((field) => {
-    let value = field.value;
+  const serializeArrayField = (
+    field: FormField,
+    existedInUploadedData: boolean,
+    isModified: boolean
+  ): any => {
+    const arrayValue = Array.isArray(field.value) ? field.value : [];
 
-    if (excludeDefaults) {
-      if (field.forceInclude) {
-      } else {
-        if (originalUploadedData) {
-          const wasInUploadedData = hasValueInUploadedData(field.path, originalUploadedData);
-          if (JSON.stringify(value) === JSON.stringify(field.defaultValue) && !wasInUploadedData) {
-            return;
-          }
-        } else if (originalFields) {
-          const isModified = isFieldModified(field, originalFields);
-          if (JSON.stringify(value) === JSON.stringify(field.defaultValue) && !isModified) {
-            return;
-          }
-        } else {
-          if (JSON.stringify(value) === JSON.stringify(field.defaultValue)) {
-            return;
-          }
-        }
+    if (field.fields && field.fields.length > 0) {
+      // For arrays of objects (e.g. zenoh routing.transport_weights, access_control.rules),
+      // if the whole array matches the defaults (not modified, not forced, not from upload),
+      // we skip it entirely in minimal output.
+      if (
+        excludeDefaults &&
+        !field.forceInclude &&
+        !existedInUploadedData &&
+        !isModified
+      ) {
+        return undefined;
       }
+
+      const items = arrayValue
+        .map((item: any, index: number) => {
+          const itemPath = [...field.path, index.toString()];
+          const childFields = field.fields!.map((templateField) =>
+            cloneFieldForArrayItem(templateField, item, itemPath)
+          );
+
+          const itemResult = formFieldsToJSON(
+            childFields,
+            excludeDefaults,
+            originalUploadedData,
+            originalFields
+          );
+
+          const hasContent = Object.keys(itemResult).length > 0;
+          const hasForcedChildren =
+            item &&
+            typeof item === "object" &&
+            item.__forceInclude &&
+            Object.values(item.__forceInclude).some(Boolean);
+
+          if (
+            hasContent ||
+            field.forceInclude ||
+            hasForcedChildren ||
+            !excludeDefaults
+          ) {
+            return itemResult;
+          }
+          return null;
+        })
+        .filter(
+          (item) => item && Object.keys(item).length > 0
+        );
+
+      if (
+        items.length === 0 &&
+        excludeDefaults &&
+        !field.forceInclude &&
+        !existedInUploadedData &&
+        !isModified
+      ) {
+        return undefined;
+      }
+
+      if (items.length === 0 && (isModified || field.forceInclude)) {
+        return [];
+      }
+
+      return items;
     }
 
-    if (field.name === 'id' && field.path.length === 1 && (!field.value || field.value === '') && !field.forceInclude) {
+    const primitives = arrayValue.filter(
+      (entry) => entry !== undefined && entry !== ""
+    );
+
+    const defaultArray = Array.isArray(field.defaultValue)
+      ? field.defaultValue
+      : [];
+    const matchesDefault =
+      JSON.stringify(arrayValue) === JSON.stringify(defaultArray);
+
+    if (primitives.length === 0) {
+      if (isModified || field.forceInclude || existedInUploadedData) {
+        return [];
+      }
+      return undefined;
+    }
+
+    if (
+      excludeDefaults &&
+      !field.forceInclude &&
+      !existedInUploadedData &&
+      !isModified &&
+      matchesDefault
+    ) {
+      return undefined;
+    }
+
+    return primitives;
+  };
+
+  fields.forEach((field) => {
+    let value = field.value;
+    const isModified = originalFields
+      ? isFieldModified(field, originalFields)
+      : true;
+    const existedInUploadedData = originalUploadedData
+      ? hasValueInUploadedData(field.path, originalUploadedData)
+      : false;
+
+    if (
+      field.name === "id" &&
+      field.path.length === 1 &&
+      (!field.value || field.value === "") &&
+      !field.forceInclude
+    ) {
       return;
     }
 
     if (field.type === "object" && field.fields) {
       let childFields = field.fields;
       if (field.forceInclude && excludeDefaults) {
-        childFields = field.fields.map(childField => ({
+        childFields = field.fields.map((childField) => ({
           ...childField,
-          forceInclude: true
+          forceInclude: true,
         }));
       }
-      
-      const nestedValue = formFieldsToJSON(childFields, excludeDefaults, originalUploadedData, originalFields);
-      if (Object.keys(nestedValue).length > 0 || !excludeDefaults || field.forceInclude) {
-        value = nestedValue;
-      } else {
-        return;
+
+      const nestedValue = formFieldsToJSON(
+        childFields,
+        excludeDefaults,
+        originalUploadedData,
+        originalFields
+      );
+      const hasNestedContent = Object.keys(nestedValue).length > 0;
+
+      if (
+        hasNestedContent ||
+        !excludeDefaults ||
+        field.forceInclude ||
+        existedInUploadedData
+      ) {
+        result[field.name] = nestedValue;
       }
+      return;
     }
 
-    if (field.type === "array" && Array.isArray(value)) {
-      if (excludeDefaults && value.length === 0 && !field.forceInclude) {
-        if (originalUploadedData) {
-          const wasInUploadedData = hasValueInUploadedData(field.path, originalUploadedData);
-          if (!wasInUploadedData) return;
-        } else if (originalFields) {
-          const isModified = isFieldModified(field, originalFields);
-          if (!isModified) return;
-        } else {
-          return;
-        }
+    if (field.type === "array") {
+      const serialized = serializeArrayField(
+        field,
+        existedInUploadedData,
+        isModified
+      );
+      if (serialized === undefined) {
+        return;
       }
+
+      if (
+        field.name === "storages" &&
+        Array.isArray(serialized) &&
+        field.path.join(".").includes("storage_manager")
+      ) {
+        const storagesObject: Record<string, any> = {};
+        serialized.forEach((storage: any, index: number) => {
+          if (!storage || typeof storage !== "object") return;
+          const storageName =
+            storage.id || storage.name || `storage_${index + 1}`;
+          if (!storageName) return;
+          const { id, name, ...rest } = storage;
+          storagesObject[storageName] = rest;
+        });
+        result[field.name] = storagesObject;
+      } else if (field.name === "search_dirs" && Array.isArray(serialized)) {
+        result[field.name] = serialized.map((entry: any) => {
+          if (entry && entry.kind === "path") {
+            return entry.value ?? "";
+          }
+          return entry;
+        });
+      } else {
+        result[field.name] = serialized;
+      }
+      return;
+    }
+
+    if (
+      excludeDefaults &&
+      !field.forceInclude &&
+      !isModified &&
+      !existedInUploadedData
+    ) {
+      return;
     }
 
     if (value === "" && !field.required) {
       value = null;
     }
 
-    if ((value !== null && value !== undefined) || !excludeDefaults) {
+    if (value !== null && value !== undefined) {
       result[field.name] = value;
     }
   });
@@ -223,7 +387,8 @@ function isSelectField(path: string[]): boolean {
   const selectFields = [
     ["mode"], // root level mode field
     ["routing", "peer", "mode"],
-    ["transport", "link", "protocols"],
+    ["transport", "link", "tx", "sequence_number_resolution"],
+    ["plugins_loading", "search_dirs", "kind"],
   ];
 
   return selectFields.some(
@@ -237,6 +402,16 @@ function getSelectOptions(path: string[]): string[] {
   const optionsMap: { [key: string]: string[] } = {
     mode: ["router", "peer", "client"],
     "routing.peer.mode": ["peer_to_peer", "brokered", "linkstate_registries"],
+    "transport.link.tx.sequence_number_resolution": [
+      "8bit",
+      "16bit",
+      "32bit",
+      "64bit",
+    ],
+    "plugins_loading.search_dirs.kind": [
+      "current_exe_parent",
+      "path",
+    ],
   };
 
   return optionsMap[pathStr] || [];
@@ -309,6 +484,54 @@ export function mergeWithSchema(uploadedData: any, schema: any): any {
   return merged;
 }
 
+function normalizeFieldValue(
+  key: string,
+  fieldValue: any,
+  schemaValue: any
+): any {
+  if (key === "storages" && Array.isArray(schemaValue)) {
+    if (Array.isArray(fieldValue)) {
+      return fieldValue.map((entry, index) => {
+        if (entry && typeof entry === "object") {
+          if (!entry.id && entry.name) {
+            return { id: entry.name, ...entry };
+          }
+          if (!entry.id) {
+            return { id: `storage_${index + 1}`, ...entry };
+          }
+        }
+        return entry;
+      });
+    }
+
+    if (fieldValue && typeof fieldValue === "object") {
+      return Object.entries(fieldValue).map(([id, config]) => ({
+        id,
+        ...(config as any),
+      }));
+    }
+  }
+
+  if (key === "search_dirs" && Array.isArray(schemaValue)) {
+    if (Array.isArray(fieldValue)) {
+      return fieldValue.map((entry) => {
+        if (typeof entry === "string") {
+          return { kind: "path", value: entry };
+        }
+        if (entry && typeof entry === "object") {
+          return {
+            kind: entry.kind ?? "path",
+            value: entry.value ?? null,
+          };
+        }
+        return { kind: "path", value: entry };
+      });
+    }
+  }
+
+  return fieldValue;
+}
+
 function hasValueInUploadedData(path: string[], uploadedData: any): boolean {
   if (!uploadedData || !Array.isArray(path) || path.length === 0) {
     return false;
@@ -329,8 +552,51 @@ function hasValueInUploadedData(path: string[], uploadedData: any): boolean {
 export function generateZenohId(): string {
   const chars = '0123456789abcdef';
   let result = '';
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 32; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+function cloneFieldForArrayItem(
+  templateField: FormField,
+  source: any,
+  basePath: string[]
+): FormField {
+  const forceIncludeMap =
+    source &&
+    typeof source === "object" &&
+    source.__forceInclude &&
+    typeof source.__forceInclude === "object"
+      ? source.__forceInclude
+      : undefined;
+
+  const currentValue =
+    source && typeof source === "object"
+      ? source[templateField.name]
+      : undefined;
+
+  const cloned: FormField = {
+    ...templateField,
+    path: [...basePath, templateField.name],
+    value:
+      currentValue !== undefined ? currentValue : templateField.defaultValue,
+    forceInclude:
+      templateField.forceInclude ||
+      Boolean(forceIncludeMap && forceIncludeMap[templateField.name]),
+  };
+
+  if (templateField.type === "object" && templateField.fields) {
+    const nestedSource =
+      currentValue && typeof currentValue === "object" ? currentValue : undefined;
+    cloned.fields = templateField.fields.map((childTemplate) =>
+      cloneFieldForArrayItem(childTemplate, nestedSource, cloned.path)
+    );
+  } else if (templateField.type === "array" && templateField.fields) {
+    cloned.fields = templateField.fields.map((childTemplate) =>
+      cloneFieldForArrayItem(childTemplate, undefined, cloned.path)
+    );
+  }
+
+  return cloned;
 }
