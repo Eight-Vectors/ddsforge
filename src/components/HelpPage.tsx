@@ -80,7 +80,11 @@ export function HelpPage({ onBack }: HelpPageProps) {
                   </h3>
                   <p className="text-slate-600">
                     Choose between CycloneDDS, Fast DDS, or Zenoh and start
-                    configuring from scratch.
+                    configuring from scratch. You can also enable the{" "}
+                    <span className="font-medium">Use default template</span>{" "}
+                    option to load a predefined configuration for that vendor,
+                    so you don&apos;t have to build everything from an empty
+                    config.
                   </p>
                 </div>
               </div>

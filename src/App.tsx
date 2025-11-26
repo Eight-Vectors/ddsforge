@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { DDSVendor, FormField } from "./types/dds";
 import { FileUpload } from "./components/FileUpload";
 import { FormField as FormFieldComponent } from "./components/FormField";
@@ -24,6 +24,11 @@ import {
   mergeWithSchema,
 } from "./utils/jsonParser";
 import {
+  ZENOH_PREDEFINED_CONFIG_JSON5,
+  FASTDDS_PREDEFINED_XML,
+  CYCLONEDDS_PREDEFINED_XML,
+} from "./constants/predefinedConfigs";
+import {
   Download,
   FileText,
   RotateCcw,
@@ -34,6 +39,7 @@ import {
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
+import { Switch } from "./components/ui/switch";
 
 function App() {
   const [vendor, setVendor] = useState<DDSVendor | null>(null);
@@ -61,6 +67,8 @@ function App() {
   const [uploadedZenohData, setUploadedZenohData] = useState<any>(null);
   const [generatedXML, setGeneratedXML] = useState<string>("");
   const [showHelpPage, setShowHelpPage] = useState(false);
+  const [isCreateMode, setIsCreateMode] = useState(false);
+  const [usePredefinedConfig, setUsePredefinedConfig] = useState(false);
 
   const handleXMLGenerate = useCallback((xml: string) => {
     setGeneratedXML(xml);
@@ -69,6 +77,8 @@ function App() {
   const handleFileUpload = async (content: string, fileName?: string) => {
     setIsLoading(true);
     setError(null);
+    setIsCreateMode(false);
+    setUsePredefinedConfig(false);
 
     if (fileName) {
       const nameWithoutExt = fileName.replace(/\.(xml|json|json5)$/i, "");
@@ -129,6 +139,8 @@ function App() {
 
   const handleVendorSelect = (selectedVendor: DDSVendor) => {
     setVendor(selectedVendor);
+    setIsCreateMode(true);
+    setUsePredefinedConfig(false);
 
     let defaultName = "";
     switch (selectedVendor) {
@@ -434,6 +446,11 @@ function App() {
         uploadedZenohData,
         originalFields
       );
+      if (isCreateMode && usePredefinedConfig && !uploadedZenohData) {
+        const predefined = parseJSON5(ZENOH_PREDEFINED_CONFIG_JSON5);
+        const merged = mergeWithSchema(jsonData, predefined);
+        return buildJSON(merged, true);
+      }
       return buildJSON(jsonData, true);
     } else {
       const xmlData = formFieldsToXML(
@@ -509,6 +526,8 @@ function App() {
     setUploadedCycloneDDSData(null);
     setUploadedZenohData(null);
     setGeneratedXML("");
+    setIsCreateMode(false);
+    setUsePredefinedConfig(false);
   };
 
   const handleShowHelp = () => {
@@ -536,6 +555,65 @@ function App() {
     setUploadedFastDDSData(null);
     setFastDDSResetCounter((prev) => prev + 1);
   };
+
+  // Handle predefined templates for FastDDS and CycloneDDS in create mode
+  useEffect(() => {
+    if (!isCreateMode) return;
+
+    if (vendor === "fastdds") {
+      if (usePredefinedConfig) {
+        try {
+          const parsed = parseXMLInBrowser(FASTDDS_PREDEFINED_XML);
+          const data =
+            parsed && parsed.profiles
+              ? parsed
+              : parsed && (parsed.dds || parsed.DDS)
+              ? parsed.dds || parsed.DDS
+              : parsed;
+
+          setUploadedFastDDSData(data);
+          setOriginalFastDDSData(JSON.parse(JSON.stringify(data)));
+          setFastDDSCreatedFromScratch(false);
+        } catch (e) {
+          console.error("Failed to apply FastDDS predefined template", e);
+        }
+      } else {
+        // Back to scratch defaults
+        setUploadedFastDDSData(null);
+        setOriginalFastDDSData(null);
+        setFastDDSCreatedFromScratch(true);
+      }
+    } else if (vendor === "cyclonedds") {
+      const schema = getSchemaForVendor("cyclonedds");
+
+      if (usePredefinedConfig) {
+        try {
+          const parsed = parseXMLInBrowser(CYCLONEDDS_PREDEFINED_XML);
+          const uploaded =
+            parsed && (parsed.CycloneDDS || parsed.cyclonedds)
+              ? parsed.CycloneDDS || parsed.cyclonedds
+              : parsed;
+
+          const mergedData = mergeUploadedDataIntoSchema(
+            uploaded,
+            schema.CycloneDDS
+          );
+          const formFields = xmlToFormFields(mergedData);
+          setFields(formFields);
+          setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+          setUploadedCycloneDDSData(uploaded);
+        } catch (e) {
+          console.error("Failed to apply CycloneDDS predefined template", e);
+        }
+      } else {
+        const schemaData = schema.CycloneDDS;
+        const formFields = xmlToFormFields(schemaData);
+        setFields(formFields);
+        setOriginalFields(JSON.parse(JSON.stringify(formFields)));
+        setUploadedCycloneDDSData(null);
+      }
+    }
+  }, [vendor, isCreateMode, usePredefinedConfig]);
 
   const renderFieldsForVendor = (fieldsToRender: FormField[]) => {
     let sectionsToRender: FormField[] = [];
@@ -1012,9 +1090,30 @@ function App() {
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <span className="text-gray-500">
-                {vendor === "zenoh" ? ".json" : ".xml"}
+                {vendor === "zenoh" ? ".json5" : ".xml"}
               </span>
             </div>
+
+            {isCreateMode && (
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <Switch
+                  id="predefined-config-switch"
+                  checked={usePredefinedConfig}
+                  onCheckedChange={setUsePredefinedConfig}
+                  className={
+                    usePredefinedConfig
+                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                      : "bg-white"
+                  }
+                />
+                <label
+                  htmlFor="predefined-config-switch"
+                  className="cursor-pointer"
+                >
+                  Use default template
+                </label>
+              </div>
+            )}
 
             <Button
               onClick={handlePreviewClick}

@@ -65,7 +65,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
           <p className="text-lg text-gray-600">
             Drag & drop a configuration file here
           </p>
-          <p className="text-sm text-gray-500 mt-2">Supports XML (.xml)</p>
+          <p className="text-sm text-gray-500 mt-2">
+            Supports XML (.xml) and JSON5 (.json5)
+          </p>
         </>
       )}
       {acceptedFiles.length > 0 && (

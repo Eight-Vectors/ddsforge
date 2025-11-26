@@ -15,6 +15,7 @@ A modern, web-based configuration editor for Data Distribution Service (DDS) imp
 ### Core Functionality
 
 - 🚀 **Create from Scratch** - Start with default configurations for any supported DDS vendor or a fresh Zenoh JSON config
+- 📦 **Use Default Templates** - Toggle a predefined, vendor-specific template for FastDDS, CycloneDDS, or Zenoh when you don&apos;t want to build the config from a blank file
 - 📁 **Import Existing** - Upload and edit existing XML/JSON configuration files, including Zenoh JSON configs
 - ✏️ **Visual Editor** - Form-based editing with real-time validation
 - 👀 **Live Preview** - Preview generated XML/JSON before downloading
@@ -66,9 +67,10 @@ The built files will be in the `dist` directory.
 ### Creating a New Configuration
 
 1. Choose your target system (FastDDS, CycloneDDS, or Zenoh)
-2. Fill in the configuration parameters using the form interface
-3. Preview your configuration to ensure it's correct
-4. Download the generated XML/JSON file (including Zenoh JSON when applicable)
+2. (Optional) Enable the `Use default template` toggle to start from a predefined config instead of an empty one
+3. Fill in the configuration parameters using the form interface
+4. Preview your configuration to ensure it's correct
+5. Download the generated XML/JSON file (including Zenoh JSON when applicable)
 
 ### Editing an Existing Configuration
 
